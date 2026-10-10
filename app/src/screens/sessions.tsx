@@ -86,6 +86,11 @@ function SessionCard({ s, onOpen, i, showMachine, pinned, onPin }: {
             <span className={cn('flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold', look.chip)}>
               <LiveIcon className="size-3" />{look.label}{live === 'needs' && s.pending > 1 ? ` · ${s.pending}` : ''}
             </span>
+            {!!s.agentType && s.agentType !== 'claude-code' && (
+              <span className="flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 font-mono text-[10.5px] text-amber-300">
+                {s.agentType}
+              </span>
+            )}
             {!!s.agents && <span className="flex items-center gap-1 rounded-full bg-violet-500/15 px-1.5 py-0.5 font-mono text-[10.5px] text-violet-300"><BotIcon className="size-3" />{s.agents}</span>}
             {!!s.tasks && <span className="flex items-center gap-1 rounded-full bg-sky-400/12 px-1.5 py-0.5 font-mono text-[10.5px] text-sky-300"><SquareTerminalIcon className="size-3" />{s.tasks}</span>}
             {!!s.workflows && <span className="flex items-center gap-1 rounded-full bg-violet-500/15 px-1.5 py-0.5 font-mono text-[10.5px] text-violet-300"><WorkflowIcon className="size-3" />{s.workflows}</span>}

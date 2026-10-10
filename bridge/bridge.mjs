@@ -191,6 +191,7 @@ function summary(s) {
   const last = [...s.events].reverse().find(e => (e.kind === 'assistant' || e.kind === 'user') && !e.agent)
   return {
     id: s.id, machine: MACHINE, title: s.realTitle || s.title, project: s.title, cwd: s.cwd, status: statusOf(s), away: s.away,
+    agentType: s.agentType || 'claude-code',
     online: Date.now() - s.lastSeen < OFFLINE_MS, pending: s.pending.length,
     updated: s.updated, lastSeen: s.lastSeen, activity: s.live?.activity ?? null, usage: s.usage ?? null,
     tasks: (s.tasks ?? []).filter(t => t.status === 'running').length,
@@ -1114,8 +1115,9 @@ async function handleMod(req, res, url, p) {
   if (p === '/mod/register') {
     if (typeof b.id !== 'string' || !b.id) return send(res, 400, { error: 'id' })
     const prev = sessions.get(b.id)
-    const s = prev ?? { id: b.id, events: [], pending: [], inbox: [], away: awayOnRegister(b.cwd), status: 'idle', updated: 0, live: null }
-    Object.assign(s, { cwd: b.cwd, title: b.title || path.basename(b.cwd || '') || b.id.slice(0, 8), lastSeen: Date.now() })
+    const agentType = typeof b.agentType === 'string' && b.agentType.trim() ? b.agentType.trim() : (prev?.agentType || 'claude-code')
+    const s = prev ?? { id: b.id, agentType, events: [], pending: [], inbox: [], away: awayOnRegister(b.cwd), status: 'idle', updated: 0, live: null }
+    Object.assign(s, { cwd: b.cwd, agentType, title: b.title || path.basename(b.cwd || '') || b.id.slice(0, 8), lastSeen: Date.now() })
     if (Number.isInteger(b.pid)) s.pid = b.pid
     // A session re-registering after a bridge restart says whether it is mid-turn.
     if (b.status === 'busy' || b.status === 'idle') { s.status = b.status; if (b.status === 'busy' && !s.live) s.live = { since: Date.now(), text: '', thinking: true, activity: null } }
