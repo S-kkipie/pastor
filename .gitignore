@@ -1,0 +1,15 @@
+app/node_modules/
+app/dist/
+*.log
+.claude-plugin/types/
+tsconfig.json
+!app/tsconfig.json
+bridge/pastor.apk
+app/android/app/build/
+app/android/.gradle/
+app/android/build/
+bridge/pastor.apk.json
+agent/node_modules/
+.playwright-mcp/
+docs/
+.superpowers/

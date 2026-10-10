@@ -1,0 +1,3 @@
+{ "name": "Pastor", "short_name": "Pastor", "start_url": "/", "display": "standalone",
+  "background_color": "#14110f", "theme_color": "#14110f",
+  "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }] }

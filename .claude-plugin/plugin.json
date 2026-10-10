@@ -1,0 +1,8 @@
+{
+  "name": "pastor",
+  "version": "0.1.0",
+  "description": "El centro de mando de tus agentes de Claude Code en el móvil: sesiones de todas tus PCs, permisos, git, terminal, previews, navegador en vivo, rutinas y un agente por WhatsApp",
+  "author": { "name": "S-kkipie" },
+  "repository": "https://github.com/S-kkipie/pastor",
+  "license": "MIT"
+}

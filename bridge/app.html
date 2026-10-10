@@ -1,0 +1,729 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+<meta name="theme-color" content="#14110f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icon.svg">
+<link rel="apple-touch-icon" href="/icon.svg">
+<title>Pastor</title>
+<style>
+:root{
+  --bg:#14110f; --panel:#1d1916; --panel2:#231e1a; --line:#2e2824; --text:#ede6df; --dim:#9a8f86; --faint:#6b625b;
+  --accent:#d97757; --ok:#6fae7c; --warn:#e0b04f; --bad:#d9645a; --you:#2a2420; --code:#0d0b0a;
+  --add:#16301d; --addt:#8fd19e; --del:#3a1816; --delt:#f0a39b;
+  --mono: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--text);
+  font:15px/1.5 -apple-system, "Segoe UI", system-ui, sans-serif;overflow:hidden}
+button{font:inherit;color:inherit;background:var(--panel);border:1px solid var(--line);
+  border-radius:10px;padding:9px 13px;cursor:pointer;user-select:none;-webkit-user-select:none;touch-action:manipulation}
+button:active{transform:scale(.97)}
+button.primary{background:var(--accent);border-color:var(--accent);color:#1a0f0a;font-weight:600}
+button.ok{background:var(--ok);border-color:var(--ok);color:#0d1a10;font-weight:600}
+button.bad{background:transparent;border-color:var(--bad);color:var(--bad)}
+input,textarea{font:inherit;font-size:16px;color:var(--text);background:var(--panel);
+  border:1px solid var(--line);border-radius:12px;padding:10px 12px;width:100%}
+textarea{resize:none;max-height:40vh}
+code,pre{font-family:var(--mono)}
+.app{display:flex;flex-direction:column;height:100dvh;padding-top:env(safe-area-inset-top)}
+header{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--line);min-height:52px}
+header h1{font-size:16px;margin:0;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+header h1 small{display:block;font:500 11.5px var(--mono);color:var(--dim)}
+header .back{padding:6px 11px;font-size:18px;line-height:1}
+main{flex:1;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;padding:12px 14px 20px}
+.dot{width:9px;height:9px;border-radius:50%;flex:none;background:var(--dim)}
+.dot.idle{background:var(--ok)} .dot.busy{background:var(--accent);animation:pulse 1.2s infinite}
+.dot.waiting{background:var(--warn);animation:pulse .8s infinite} .dot.off{background:#4a423c}
+@keyframes pulse{50%{opacity:.35}}
+.shimmer{background:linear-gradient(90deg,var(--dim) 0%,var(--accent) 40%,#ffd6c4 50%,var(--accent) 60%,var(--dim) 100%);
+  background-size:200% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:sh 2.2s linear infinite}
+@keyframes sh{to{background-position:-200% 0}}
+@media (prefers-reduced-motion:reduce){.shimmer,.dot,.spin{animation:none!important}}
+
+/* session list */
+.machine{display:flex;align-items:center;gap:8px;margin:14px 2px 8px;font:600 12px var(--mono);color:var(--dim);text-transform:lowercase;letter-spacing:.02em}
+.machine:first-child{margin-top:2px}
+.machine .n{margin-left:auto;font-weight:400}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:10px}
+.sess{display:flex;gap:12px;align-items:flex-start}
+.sess .t{font-weight:600;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.sess .c{color:var(--faint);font-size:12px;font-family:var(--mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sess .l{color:var(--dim);font-size:13.5px;margin-top:4px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.sess .act{font-size:13px;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.badge{background:var(--warn);color:#1a1405;border-radius:99px;padding:1px 8px;font-size:12px;font-weight:700}
+.pill{font-size:11.5px;border:1px solid var(--line);border-radius:99px;padding:1px 8px;color:var(--dim);font-weight:400}
+.pill.away{border-color:var(--accent);color:var(--accent)}
+.empty{color:var(--dim);text-align:center;margin-top:18vh}
+
+/* messages */
+.ev{margin:10px 0;max-width:100%;overflow-wrap:anywhere}
+.ev.user{background:var(--you);border-radius:16px 16px 4px 16px;padding:9px 13px;margin-left:14%;white-space:pre-wrap}
+.ev.assistant{line-height:1.55}
+.ev.assistant p{margin:.35em 0}
+.ev.assistant h3,.ev.assistant h4{margin:.7em 0 .3em;font-size:15px}
+.ev.assistant ul{margin:.3em 0;padding-left:1.3em}
+.ev.assistant code{font-size:12.5px;background:var(--panel2);padding:1px 5px;border-radius:5px}
+.ev.assistant pre{background:var(--code);border:1px solid var(--line);border-radius:10px;padding:9px 11px;overflow-x:auto;font-size:12.5px;line-height:1.45}
+.ev.assistant pre code{background:none;padding:0}
+.ev.info{text-align:center;color:var(--faint);font-size:12px}
+
+/* tools */
+details.tool,details.tgroup{margin:4px 0;border-radius:10px}
+details.tool>summary,details.tgroup>summary{list-style:none;display:flex;align-items:center;gap:9px;min-height:40px;padding:6px 8px;
+  border-radius:10px;cursor:pointer;color:var(--dim)}
+details>summary::-webkit-details-marker{display:none}
+details.tool>summary:active,details.tgroup>summary:active{background:var(--panel)}
+.ic{width:22px;height:22px;flex:none;display:grid;place-items:center;border-radius:6px;background:var(--panel2);
+  font:600 12px var(--mono);color:var(--dim)}
+.lbl{flex:none;color:var(--text);font-size:14px;white-space:nowrap}
+.det{flex:1;min-width:0;font:12.5px var(--mono);color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;direction:ltr}
+.meta{flex:none;display:flex;align-items:center;gap:6px;font:11.5px var(--mono);color:var(--faint)}
+.chip{font:11px var(--mono);padding:0 6px;border-radius:99px;border:1px solid var(--line)}
+.plus{color:var(--addt)} .minus{color:var(--delt)}
+.spin{width:12px;height:12px;border-radius:50%;border:2px solid var(--line);border-top-color:var(--accent);animation:rot .8s linear infinite}
+@keyframes rot{to{transform:rotate(360deg)}}
+.tool[data-state=error]>summary{border-left:2px solid var(--bad);border-radius:4px 10px 10px 4px}
+.tool[data-state=error] .ic{color:var(--bad)}
+.tool[data-state=denied] .lbl{text-decoration:line-through;color:var(--dim)}
+.tool[data-state=running] .lbl{background:linear-gradient(90deg,var(--text) 0%,var(--accent) 45%,#ffd6c4 50%,var(--accent) 55%,var(--text) 100%);
+  background-size:200% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:sh 2.2s linear infinite}
+.body{margin:2px 0 8px 39px;display:flex;flex-direction:column;gap:6px}
+.rows{margin-left:12px;padding-left:10px;border-left:1px solid var(--line)}
+.out{background:var(--code);border:1px solid var(--line);border-radius:8px;padding:7px 9px;margin:0;font-size:12px;line-height:1.45;
+  white-space:pre;overflow-x:auto;max-height:9.5em;overflow-y:hidden;position:relative}
+.out.full{max-height:none}
+.out.err{color:var(--delt)}
+.more{align-self:flex-start;font-size:12px;padding:3px 9px;border-radius:99px;color:var(--dim)}
+.kv{font:12px var(--mono);color:var(--dim)} .kv b{color:var(--text);font-weight:500}
+.diff{background:var(--code);border:1px solid var(--line);border-radius:8px;font:12px/1.5 var(--mono);overflow-x:auto;max-height:16em;overflow-y:auto}
+.diff div{white-space:pre;padding:0 9px}
+.diff .a{background:var(--add);color:var(--addt)} .diff .d{background:var(--del);color:var(--delt)}
+.diff .h{color:#7aa2d9;padding-top:4px} .diff .f{color:var(--text);font-weight:700;padding-top:6px}
+.todos{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:8px 12px;margin:8px 0}
+.todos h4{margin:0 0 4px;font-size:13px;color:var(--dim);font-weight:600;display:flex;gap:8px}
+.todo{display:flex;gap:8px;font-size:13.5px;padding:2px 0}
+.todo.completed{color:var(--faint);text-decoration:line-through}
+.todo.in_progress{color:var(--text);font-weight:600}
+.todo.pending{color:var(--dim)}
+.todo i{font-style:normal;width:16px;flex:none;text-align:center}
+.todo.in_progress i{color:var(--accent)} .todo.completed i{color:var(--ok)}
+
+/* live turn */
+#live{display:none;align-items:flex-start;gap:12px;margin:12px 0 4px}
+#live.on{display:flex}
+#orb{width:44px;height:44px;flex:none;transition:opacity .4s}
+#live .lv{flex:1;min-width:0}
+#live .st{font-size:13.5px;font-weight:600;display:flex;gap:8px;align-items:baseline;min-height:22px}
+#live .st small{font:500 11.5px var(--mono);color:var(--faint);-webkit-text-fill-color:var(--faint)}
+#live .thought{font-size:12.5px;color:var(--faint);font-style:italic;margin-top:2px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+#live .stream{margin-top:6px;line-height:1.55;white-space:pre-wrap;overflow-wrap:anywhere}
+#live .stream:after{content:"▍";color:var(--accent);animation:pulse 1s infinite}
+#live .stream:empty{display:none}
+
+/* pending */
+.pending{border-color:var(--warn)}
+.pending h3{margin:0 0 8px;font-size:14px;color:var(--warn)}
+.pending .cmd{font-family:var(--mono);font-size:12.5px;background:var(--code);border-radius:8px;padding:8px;
+  white-space:pre-wrap;overflow-wrap:anywhere;max-height:30vh;overflow-y:auto;margin-bottom:10px}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+.row>button{flex:1}
+.opt{display:block;width:100%;text-align:left;margin-bottom:6px}
+.opt small{display:block;color:var(--dim)}
+.opt.sel{border-color:var(--accent);background:#2b1f19}
+
+footer{border-top:1px solid var(--line);padding:8px 12px calc(8px + env(safe-area-inset-bottom))}
+.quick{display:flex;gap:6px;overflow-x:auto;padding-bottom:8px;scrollbar-width:none}
+.quick button{flex:none;padding:6px 11px;font-size:13.5px;border-radius:99px}
+.compose{display:flex;gap:8px;align-items:flex-end}
+.compose button{flex:none;height:44px}
+.tabs{display:flex;gap:4px}
+.tabs button,#away{padding:6px 9px;font-size:13px}
+.tabs button.on{border-color:var(--accent);color:var(--accent)}
+.gdiff{font-family:var(--mono);font-size:12px;white-space:pre;overflow-x:auto;background:var(--code);border-radius:10px;padding:10px;line-height:1.5}
+.gdiff .a{color:var(--addt)} .gdiff .d{color:var(--delt)} .gdiff .h{color:#7aa2d9} .gdiff .f{color:var(--text);font-weight:700}
+.center{max-width:360px;margin:12vh auto 0;text-align:center}
+.center input{text-align:center;font-size:28px;letter-spacing:.3em;font-family:var(--mono)}
+.muted{color:var(--dim);font-size:13.5px}
+.err{color:var(--bad);font-size:13.5px;min-height:1.4em}
+.sheet{position:fixed;inset:0;background:#000a;display:flex;align-items:flex-end;z-index:5}
+.sheet>div{background:var(--panel);width:100%;border-radius:18px 18px 0 0;padding:16px 16px calc(16px + env(safe-area-inset-bottom));max-height:85dvh;overflow-y:auto}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.chips button{padding:5px 11px;border-radius:99px;font-size:13px}
+.chips button.on{border-color:var(--accent);color:var(--accent)}
+</style>
+</head>
+<body>
+<div class="app" id="app"></div>
+<script type="module">
+import { MODE_FRAMES, resolvePreset } from '/vendor/thinking-orbs.js'
+
+const $ = (sel, el = document) => el.querySelector(sel)
+const store = {
+  get(k, d) { try { const v = localStorage.getItem('pastor.' + k); return v == null ? d : JSON.parse(v) } catch { return d } },
+  set(k, v) { try { localStorage.setItem('pastor.' + k, JSON.stringify(v)) } catch {} },
+}
+const DEFAULT_QUICK = ['sí', 'no', 'continúa', 'corre los tests', 'haz commit', 'explícame qué hiciste']
+const S = { token: store.get('token', ''), view: 'list', sid: null, tab: 'chat', events: [], bySeq: new Map(), since: 0,
+  pending: [], pendKey: '', session: null, live: null, skew: 0, timer: null, draft: '', open: new Set(), shut: new Set(), launchMachine: null }
+
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
+const ago = t => { const s = Math.max(0, Math.round((Date.now() - t) / 1000)); return s < 60 ? `${s}s` : s < 3600 ? `${Math.round(s/60)}m` : `${Math.round(s/3600)}h` }
+const dur = ms => ms == null ? '' : ms < 1000 ? '' : ms < 60_000 ? `${(ms/1000).toFixed(ms < 10_000 ? 1 : 0)}s` : `${Math.floor(ms/60_000)}m${Math.round(ms%60_000/1000)}s`
+const midTrunc = (p, n = 46) => { p = String(p ?? ''); if (p.length <= n) return p; const f = p.split(/[\\/]/).pop(); return f.length >= n - 2 ? '…' + f.slice(-(n - 1)) : p.slice(0, n - f.length - 2) + '…/' + f }
+const shortPath = p => { const parts = String(p ?? '').split(/[\\/]/).filter(Boolean); return parts.length > 2 ? '…/' + parts.slice(-2).join('/') : String(p ?? '') }
+
+function md(text) {
+  const blocks = String(text).split(/```[\w-]*\n?/)
+  return blocks.map((b, i) => {
+    if (i % 2) return `<pre><code>${esc(b.replace(/\n$/, ''))}</code></pre>`
+    const inline = s => esc(s).replace(/`([^`\n]+)`/g, '<code>$1</code>').replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>')
+      .replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener" style="color:var(--accent)">$1</a>')
+    const out = []; let list = null
+    for (const line of b.split('\n')) {
+      const h = line.match(/^#{1,4}\s+(.*)/), li = line.match(/^\s*(?:[-*]|\d+\.)\s+(.*)/)
+      if (li) { list ??= []; list.push(`<li>${inline(li[1])}</li>`); continue }
+      if (list) { out.push(`<ul>${list.join('')}</ul>`); list = null }
+      if (h) out.push(`<h4>${inline(h[1])}</h4>`)
+      else if (line.trim()) out.push(`<p>${inline(line)}</p>`)
+    }
+    if (list) out.push(`<ul>${list.join('')}</ul>`)
+    return out.join('')
+  }).join('')
+}
+
+async function api(path, body) {
+  const r = await fetch(path, {
+    method: body ? 'POST' : 'GET',
+    headers: { 'content-type': 'application/json', ...(S.token ? { authorization: 'Bearer ' + S.token } : {}) },
+    body: body ? JSON.stringify(body) : undefined,
+  })
+  if (r.status === 401) { S.token = ''; store.set('token', ''); render(); throw new Error('unpaired') }
+  const data = await r.json().catch(() => ({}))
+  if (!r.ok) throw new Error(data.error || r.statusText)
+  return data
+}
+
+// ---------- thinking orb ----------
+const ORB = { idle: ['breathing', 0, .35], thinking: ['breathing', 1, 1], writing: ['composing', 1.3, 1], tool: ['working', 1.6, 1], waiting: ['listening', .7, 1] }
+const CORAL = [217, 119, 87], HI = [255, 214, 196]
+function createOrb(cv, css = 44, preset = 64) {
+  const dpr = Math.min(2, devicePixelRatio || 1), ctx = cv.getContext('2d')
+  cv.width = cv.height = Math.round(css * dpr)
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches
+  let cur = resolvePreset('breathing', preset), speed = 0, target = 0, t = 0.6, last = 0, raf = 0, fade = 1, state = ''
+  function draw() {
+    const k = (css / preset) * dpr
+    ctx.setTransform(k, 0, 0, k, 0, 0); ctx.clearRect(0, 0, preset, preset)
+    const { dots, lines } = MODE_FRAMES[cur.mode](preset, t, cur.opts)
+    for (const l of lines) {
+      ctx.strokeStyle = `rgba(${CORAL},${(l.a ?? 1) * fade})`; ctx.lineWidth = l.w
+      ctx.beginPath(); ctx.moveTo(l.x1, l.y1); ctx.lineTo(l.x2, l.y2); ctx.stroke()
+    }
+    for (const d of dots) {
+      const near = 1 - Math.min(1, Math.max(0, d.white))
+      const c = CORAL.map((v, i) => Math.round(v + (HI[i] - v) * near * 0.6))
+      ctx.fillStyle = `rgba(${c},${(d.a ?? 1) * (0.35 + 0.65 * near) * fade})`
+      ctx.beginPath(); ctx.arc(d.x, d.y, d.r, 0, Math.PI * 2); ctx.fill()
+    }
+  }
+  function loop(now) {
+    const dt = Math.min(0.1, (now - last) / 1000); last = now
+    speed += (target - speed) * Math.min(1, dt * 4)
+    fade = Math.min(1, fade + dt * 3)
+    t += dt * speed * cur.speed * 0.5
+    draw()
+    raf = (speed > 0.01 || target > 0 || fade < 1) && !document.hidden && cv.isConnected ? requestAnimationFrame(loop) : 0
+  }
+  const kick = () => { if (!raf && !reduce) { last = performance.now(); raf = requestAnimationFrame(loop) } }
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) kick() })
+  return {
+    set(s) {
+      if (s === state) return
+      state = s
+      const [mode, sp, op] = ORB[s] ?? ORB.idle
+      const next = resolvePreset(mode, preset)
+      if (next.mode !== cur.mode) { cur = next; fade = 0 }
+      target = sp; cv.style.opacity = op
+      reduce ? draw() : kick()
+    },
+  }
+}
+
+// ---------- views ----------
+function render() {
+  clearTimeout(S.timer)
+  const app = $('#app')
+  if (!S.token) return renderPair(app)
+  if (S.view === 'session') return renderSession(app)
+  return renderList(app)
+}
+
+function renderPair(app) {
+  app.innerHTML = `<main><div class="center">
+    <canvas id="orb" style="width:72px;height:72px;margin:0 auto 6px;display:block"></canvas>
+    <h2 style="margin:0 0 6px">Pastor</h2>
+    <p class="muted">Escribe <code>/pastor</code> en Claude Code para ver el código de emparejamiento.</p>
+    <input id="code" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="000000">
+    <p class="err" id="err"></p>
+    <button class="primary" id="go" style="width:100%">Emparejar</button></div></main>`
+  createOrb($('#orb'), 72).set('thinking')
+  const go = async () => {
+    try {
+      const ua = navigator.userAgent
+      const { token } = await api('/api/pair', { code: $('#code').value, name: /iPhone|iPad/.test(ua) ? 'iphone' : /Android/.test(ua) ? 'android' : 'navegador' })
+      S.token = token; store.set('token', token); render()
+    } catch (e) { $('#err').textContent = e.message }
+  }
+  $('#go').onclick = go
+  $('#code').onkeydown = e => { if (e.key === 'Enter') go() }
+  $('#code').focus()
+}
+
+async function renderList(app) {
+  if (!$('#list')) {
+    app.innerHTML = `<header><h1>Sesiones</h1><button id="new">+ Nueva</button></header><main id="list"></main>`
+    $('#new').onclick = launchSheet
+  }
+  try {
+    const { sessions, machines } = await api('/api/sessions')
+    const el = $('#list'); if (!el) return
+    const multi = machines.length > 1
+    const card = s => {
+      const busy = s.online && s.status !== 'idle'
+      const act = s.status === 'waiting' ? '<span style="color:var(--warn)">Esperando tu respuesta</span>'
+        : busy ? `<span class="shimmer">${s.activity ? `${esc(s.activity.tool)} · ${esc(s.activity.text)}` : 'Pensando…'}</span>` : ''
+      return `<div class="card sess" data-id="${esc(s.id)}">
+        <span class="dot ${s.online ? s.status : 'off'}" style="margin-top:7px"></span>
+        <div style="flex:1;min-width:0">
+          <div class="t">${esc(s.title)} ${s.pending ? `<span class="badge">${s.pending}</span>` : ''}
+            ${s.away ? '<span class="pill away">📱 fuera</span>' : ''} ${s.online ? '' : `<span class="pill">offline ${ago(s.lastSeen)}</span>`}</div>
+          <div class="c">${esc(s.cwd)}</div>
+          ${act ? `<div class="act">${act}</div>` : s.last ? `<div class="l">${s.last.kind === 'user' ? '› ' : ''}${esc(s.last.text)}</div>` : ''}
+        </div></div>`
+    }
+    let html = ''
+    if (multi) {
+      for (const m of machines) {
+        const mine = sessions.filter(s => s.machine === m.name)
+        html += `<div class="machine"><span class="dot ${m.online ? 'idle' : 'off'}"></span>${esc(m.name)}${m.local ? ' · hub' : ''}
+          <span class="n">${m.online ? `${mine.filter(s => s.online).length} activas` : 'sin conexión'}</span></div>`
+        html += mine.map(card).join('') || `<div class="muted" style="margin:0 4px 10px">Sin sesiones.</div>`
+      }
+    } else {
+      html = sessions.map(card).join('')
+    }
+    el.innerHTML = sessions.length || multi ? html
+      : `<div class="empty">No hay sesiones.<br><span class="muted">Abre Claude Code con el mod pastor cargado.</span></div>`
+    el.querySelectorAll('.sess').forEach(c => c.onclick = () => openSession(c.dataset.id))
+  } catch (e) { if (e.message !== 'unpaired') console.warn(e) }
+  S.timer = setTimeout(render, 2000)
+}
+
+function openSession(id) {
+  Object.assign(S, { view: 'session', sid: id, tab: 'chat', events: [], bySeq: new Map(), since: 0, pending: [], pendKey: '',
+    session: null, live: null, open: new Set(), shut: new Set() })
+  $('#app').innerHTML = ''
+  render()
+}
+
+let orb = null
+async function renderSession(app) {
+  if (!$('#chat')) {
+    app.innerHTML = `
+      <header><button class="back" id="back">‹</button>
+        <h1 id="stitle">…<small></small></h1>
+        <div class="tabs"><button data-tab="chat" class="on">Chat</button><button data-tab="diff">Diff</button></div></header>
+      <main id="chat"><div id="events"></div>
+        <div id="live"><canvas id="orb"></canvas><div class="lv"><div class="st"></div><div class="thought"></div><div class="stream"></div></div></div>
+        <div id="pend"></div></main>
+      <main id="diffv" hidden></main>
+      <footer>
+        <div class="quick" id="quick"></div>
+        <div class="compose">
+          <button id="esc" title="Interrumpir">Esc</button>
+          <textarea id="msg" rows="1" placeholder="Mensaje a Claude…"></textarea>
+          <button class="primary" id="send">↑</button>
+        </div>
+      </footer>`
+    orb = createOrb($('#orb'))
+    $('#back').onclick = () => { S.view = 'list'; $('#app').innerHTML = ''; render() }
+    app.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => setTab(b.dataset.tab))
+    const msg = $('#msg')
+    msg.value = S.draft
+    msg.oninput = () => { S.draft = msg.value; msg.style.height = 'auto'; msg.style.height = msg.scrollHeight + 'px' }
+    msg.onkeydown = e => { if (e.key === 'Enter' && !e.shiftKey && matchMedia('(pointer:fine)').matches) { e.preventDefault(); sendPrompt() } }
+    $('#send').onclick = () => sendPrompt()
+    $('#esc').onclick = async () => { await api(`/api/session/${encodeURIComponent(S.sid)}/abort`, {}); toastInfo('Interrumpido') }
+    $('#events').addEventListener('toggle', onToggle, true)
+    $('#events').addEventListener('click', onMore)
+    renderQuick()
+  }
+  let fast = false
+  try {
+    const d = await api(`/api/session/${encodeURIComponent(S.sid)}?since=${S.since}`)
+    S.session = d.session
+    S.skew = d.now ? Date.now() - d.now : 0
+    const atBottom = isAtBottom()
+    let changed = false
+    for (const ev of d.events) {
+      const i = S.bySeq.get(ev.seq)
+      if (i === undefined) { S.bySeq.set(ev.seq, S.events.length); S.events.push(ev) } else S.events[i] = ev
+      changed = true
+    }
+    S.since = d.seq
+    if (changed) renderEvents()
+    const pendKey = JSON.stringify(d.pending.map(p => p.id))
+    if (pendKey !== S.pendKey) { S.pendKey = pendKey; S.pending = d.pending; renderPending() }
+    S.live = d.live
+    renderLive()
+    $('#stitle').innerHTML = `${esc(d.session.title)}<small>${esc(d.session.machine ?? '')} · ${esc(shortPath(d.session.cwd))}</small>`
+    renderAwayBtn()
+    if (atBottom) scrollDown()
+    fast = !!d.live
+  } catch (e) { if (e.message !== 'unpaired') console.warn(e) }
+  S.timer = setTimeout(render, fast ? 450 : 1300)
+}
+
+// ---------- tool rendering ----------
+const ICON = { Bash: '$', PowerShell: '>', Read: '◫', Edit: '✎', MultiEdit: '✎', Write: '✚', NotebookEdit: '✎', Grep: '⌕', Glob: '⌕',
+  WebFetch: '◍', WebSearch: '⌕', TodoWrite: '☑', Agent: '⧉', Task: '⧉', AskUserQuestion: '?', Skill: '✦', ToolSearch: '⌕' }
+const VERB = { Bash: 'Ejecutó', PowerShell: 'Ejecutó', Read: 'Leyó', Edit: 'Editó', MultiEdit: 'Editó', Write: 'Escribió', Grep: 'Buscó', Glob: 'Buscó',
+  WebFetch: 'Abrió', WebSearch: 'Buscó en web', Skill: 'Skill', ToolSearch: 'Herramientas' }
+const EXPLORE = new Set(['Read', 'Grep', 'Glob', 'LS', 'ToolSearch', 'WebSearch', 'WebFetch'])
+
+function diffLines(oldS, newS) {
+  const a = String(oldS ?? '').split('\n'), b = String(newS ?? '').split('\n')
+  let p = 0; while (p < a.length && p < b.length && a[p] === b[p]) p++
+  let s = 0; while (s < a.length - p && s < b.length - p && a[a.length - 1 - s] === b[b.length - 1 - s]) s++
+  const ctx = l => `<div>  ${esc(l)}</div>`
+  const del = a.slice(p, a.length - s), add = b.slice(p, b.length - s)
+  return {
+    html: [...a.slice(Math.max(0, p - 2), p).map(ctx), ...del.map(l => `<div class="d">- ${esc(l)}</div>`),
+      ...add.map(l => `<div class="a">+ ${esc(l)}</div>`), ...b.slice(b.length - s, b.length - s + 2).map(ctx)].join(''),
+    plus: add.length, minus: del.length,
+  }
+}
+
+function toolView(ev) {
+  const d = ev.detail ?? {}, tool = ev.tool ?? '?'
+  const end = ev.end
+  const state = !end ? 'running' : end.ok ? 'ok' : /deneg|denied|rechaz/i.test(end.out ?? '') ? 'denied' : 'error'
+  let lbl = tool, det = ev.text ?? '', badge = '', body = ''
+  const outBlock = (cls = '') => end?.out ? `<pre class="out ${cls}">${esc(end.out)}</pre>${end.out.split('\n').length > 6 ? '<button class="more">Ver todo</button>' : ''}` : ''
+  if (tool.startsWith('mcp__')) {
+    lbl = d.name ?? tool.split('__')[2] ?? tool
+    det = `· ${d.server ?? tool.split('__')[1]}`
+    body = d.args ? `<div class="kv">${esc(d.args)}</div>` : ''
+    body += outBlock(state === 'error' ? 'err' : '')
+    return { icon: '⧩', lbl, det, badge, body, state }
+  }
+  switch (tool) {
+    case 'Bash': case 'PowerShell':
+      lbl = d.description || (tool === 'Bash' ? 'Comando' : 'PowerShell'); det = d.command ?? ev.text
+      body = `<pre class="out full">${esc(d.command ?? ev.text)}</pre>` + outBlock(state === 'error' ? 'err' : ''); break
+    case 'Read':
+      lbl = 'Leer'; det = midTrunc(d.file ?? ev.text)
+      if (d.offset) badge = `<span class="chip">L${d.offset}${d.limit ? '–' + (Number(d.offset) + Number(d.limit)) : ''}</span>`
+      if (end?.out && /^\d+ líneas$/.test(end.out)) badge += `<span class="chip">${esc(end.out)}</span>`
+      body = state === 'error' ? outBlock('err') : ''; break
+    case 'Edit': case 'MultiEdit': {
+      lbl = 'Editar'; det = midTrunc(d.file ?? ev.text)
+      const edits = d.edits ?? [{ old: d.old, new: d.new }]
+      let html = '', plus = 0, minus = 0
+      for (const e of edits) { const r = diffLines(e.old, e.new); html += r.html + '<div class="h"> </div>'; plus += r.plus; minus += r.minus }
+      badge = `<span class="plus">+${plus}</span><span class="minus">−${minus}</span>${edits.length > 1 ? `<span class="chip">×${edits.length}</span>` : ''}`
+      body = `<div class="diff">${html}</div>` + (state === 'error' ? outBlock('err') : ''); break
+    }
+    case 'Write':
+      lbl = 'Escribir'; det = midTrunc(d.file ?? ev.text); badge = d.lines ? `<span class="plus">+${d.lines}</span>` : ''
+      body = d.head ? `<div class="diff">${d.head.split('\n').map(l => `<div class="a">+ ${esc(l)}</div>`).join('')}</div>` : ''
+      body += state === 'error' ? outBlock('err') : ''; break
+    case 'Grep': case 'Glob':
+      lbl = tool === 'Grep' ? 'Buscar' : 'Archivos'; det = `${d.pattern ?? ev.text}${d.path ? '  en ' + shortPath(d.path) : ''}`
+      if (end?.out) { const m = end.out.match(/^(\d+) archivos/); if (m) badge = `<span class="chip">${m[1]}</span>` }
+      body = outBlock(state === 'error' ? 'err' : ''); break
+    case 'WebFetch': {
+      lbl = 'Web'; try { const u = new URL(d.url ?? ev.text); det = u.hostname + u.pathname } catch { det = ev.text }
+      body = (d.prompt ? `<div class="kv">${esc(d.prompt)}</div>` : '') + outBlock(state === 'error' ? 'err' : ''); break
+    }
+    case 'WebSearch': lbl = 'Buscar en web'; det = `“${d.query ?? ev.text}”`; body = outBlock(); break
+    case 'Agent': case 'Task':
+      lbl = d.description || 'Subagente'; det = d.type ? `· ${d.type}` : ''
+      body = (d.prompt ? `<div class="kv">${esc(d.prompt.slice(0, 400))}${d.prompt.length > 400 ? '…' : ''}</div>` : '') + outBlock(); break
+    case 'AskUserQuestion': lbl = 'Pregunta'; det = ev.text; break
+    case 'Skill': lbl = 'Skill'; det = ev.text; body = outBlock(); break
+    default:
+      det = ev.text; body = outBlock(state === 'error' ? 'err' : '')
+  }
+  return { icon: ICON[tool] ?? '⚙', lbl, det, badge, body, state }
+}
+
+function toolRow(ev, children = '') {
+  const v = toolView(ev)
+  const key = 't' + ev.seq
+  const open = S.open.has(key) || (v.state === 'error' && !S.shut.has(key))
+  const elapsed = v.state === 'running' ? `<span class="live-t" data-t="${ev.t}">${dur(Date.now() - S.skew - ev.t)}</span>` : dur(ev.end?.ms)
+  const st = v.state === 'running' ? '<span class="spin"></span>' : v.state === 'error' ? '<span style="color:var(--bad)">!</span>' : v.state === 'denied' ? '⊖' : ''
+  return `<details class="tool" data-k="${key}" data-state="${v.state}" ${open ? 'open' : ''}>
+    <summary><span class="ic">${esc(v.icon)}</span><span class="lbl">${esc(v.lbl)}</span>
+      <code class="det">${esc(v.det)}</code><span class="meta">${v.badge}${elapsed}${st}</span></summary>
+    ${v.body || children ? `<div class="body">${v.body}${children}</div>` : ''}</details>`
+}
+
+function todoBlock(ev) {
+  const todos = ev.detail?.todos ?? []
+  const done = todos.filter(t => t.status === 'completed').length
+  const mark = { completed: '✓', in_progress: '▸', pending: '○' }
+  return `<div class="todos"><h4>☑ Tareas <span style="margin-left:auto;font-weight:400">${done}/${todos.length}</span></h4>
+    ${todos.map(t => `<div class="todo ${esc(t.status)}"><i>${mark[t.status] ?? '○'}</i><span>${esc(t.content)}</span></div>`).join('')}</div>`
+}
+
+function groupRow(list) {
+  const key = 'g' + list[0].seq
+  const running = list.some(e => !e.end)
+  const counts = {}
+  let plus = 0, minus = 0
+  for (const e of list) {
+    const verb = VERB[e.tool] ?? (e.tool?.startsWith('mcp__') ? 'MCP' : e.tool)
+    counts[verb] = (counts[verb] ?? 0) + 1
+    if (e.tool === 'Edit' || e.tool === 'MultiEdit') { const v = toolView(e); const m = v.badge.match(/\+(\d+).*−(\d+)/); if (m) { plus += +m[1]; minus += +m[2] } }
+  }
+  const allExplore = list.every(e => EXPLORE.has(e.tool))
+  const allBash = list.every(e => e.tool === 'Bash' || e.tool === 'PowerShell')
+  const lbl = allBash ? `${running ? 'Ejecutando' : 'Ejecutó'} ${list.length} comandos` : allExplore ? (running ? 'Explorando…' : 'Exploró') : (running ? 'Trabajando…' : `${list.length} herramientas`)
+  const sum = Object.entries(counts).map(([v, n]) => `${n} ${v.toLowerCase()}`).join(' · ')
+  const ms = list.reduce((a, e) => a + (e.end?.ms ?? 0), 0)
+  const open = S.open.has(key) || (running && !S.shut.has(key))
+  return `<details class="tgroup" data-k="${key}" ${open ? 'open' : ''}>
+    <summary><span class="ic">◇</span><span class="lbl ${running ? 'shimmer' : ''}">${esc(lbl)}</span>
+      <code class="det">${esc(allBash || allExplore ? sum : sum)}</code>
+      <span class="meta">${plus || minus ? `<span class="plus">+${plus}</span><span class="minus">−${minus}</span>` : ''}${dur(ms)}${running ? '<span class="spin"></span>' : ''}</span></summary>
+    <div class="rows">${list.map(e => toolRow(e)).join('')}</div></details>`
+}
+
+function renderEvents() {
+  const evs = S.events.filter(e => !e.agent)
+  // Subagent calls hang under the Agent row that started them, in order.
+  const agentRows = evs.filter(e => e.kind === 'tool' && (e.tool === 'Agent' || e.tool === 'Task'))
+  const agentIds = [...new Set(S.events.filter(e => e.agent).map(e => e.agent))]
+  const kids = new Map(agentRows.map((row, i) => [row.seq, S.events.filter(e => e.agent && e.agent === agentIds[i])]))
+  const out = []
+  let run = []
+  const flush = () => {
+    if (run.length >= 2) out.push(groupRow(run))
+    else for (const e of run) out.push(toolRow(e))
+    run = []
+  }
+  for (const ev of evs) {
+    if (ev.kind === 'tool') {
+      if (ev.tool === 'TodoWrite') { flush(); out.push(todoBlock(ev)); continue }
+      if (ev.tool === 'Agent' || ev.tool === 'Task') {
+        flush()
+        const list = kids.get(ev.seq) ?? []
+        const tail = list.slice(-3).map(e => toolRow(e)).join('')
+        const more = list.length > 3 ? `<div class="kv">+${list.length - 3} más</div>` : ''
+        const summary = list.length ? `<div class="kv">${list.length} herramientas${ev.end ? ` · ${dur(ev.end.ms) || '<1s'}` : ''}</div>` : ''
+        out.push(toolRow(ev, `<div class="rows">${more}${tail}</div>${summary}`))
+        continue
+      }
+      const errored = ev.end && !ev.end.ok
+      if (errored) { flush(); out.push(toolRow(ev)); continue }
+      run.push(ev); continue
+    }
+    flush()
+    if (ev.kind === 'assistant') out.push(`<div class="ev assistant">${md(ev.text)}</div>`)
+    else if (ev.kind === 'user') out.push(`<div class="ev user">${esc(ev.text)}</div>`)
+    else out.push(`<div class="ev info">${esc(ev.text)}</div>`)
+  }
+  flush()
+  $('#events').innerHTML = out.join('')
+}
+
+function onToggle(e) {
+  const el = e.target
+  if (!(el instanceof HTMLDetailsElement) || !el.dataset.k) return
+  if (el.open) { S.open.add(el.dataset.k); S.shut.delete(el.dataset.k) } else { S.open.delete(el.dataset.k); S.shut.add(el.dataset.k) }
+}
+function onMore(e) {
+  const b = e.target.closest('.more'); if (!b) return
+  const pre = b.previousElementSibling; pre.classList.toggle('full'); b.textContent = pre.classList.contains('full') ? 'Ver menos' : 'Ver todo'
+}
+
+function renderLive() {
+  const el = $('#live'); if (!el) return
+  const L = S.live, s = S.session
+  const waiting = S.pending.length > 0 || s?.status === 'waiting'
+  const on = !!L || waiting
+  el.classList.toggle('on', on)
+  if (!on) { orb?.set('idle'); return }
+  const state = waiting ? 'waiting' : L.activity ? 'tool' : L.text ? 'writing' : 'thinking'
+  orb?.set(state)
+  const secs = L ? dur(Date.now() - S.skew - L.since) : ''
+  const label = waiting ? 'Esperando tu respuesta'
+    : L.activity ? `${esc(L.activity.tool)} <small>${esc(L.activity.text)}</small>`
+    : L.text ? 'Escribiendo…' : 'Pensando…'
+  $('.st', el).innerHTML = `<span class="${waiting ? '' : 'shimmer'}" style="${waiting ? 'color:var(--warn)' : ''}">${label}</span><small>${secs}</small>`
+  $('.thought', el).textContent = !waiting && L?.thinking && L.thought ? L.thought.replace(/\s+/g, ' ').trim() : ''
+  const stream = $('.stream', el)
+  if (stream.textContent !== (L?.text ?? '')) stream.textContent = L?.text ?? ''
+}
+
+// live timers tick between polls
+setInterval(() => {
+  document.querySelectorAll('.live-t').forEach(t => { t.textContent = dur(Date.now() - S.skew - Number(t.dataset.t)) || '0s' })
+  if (S.view === 'session' && S.live) {
+    const small = $('#live .st small:last-child'); if (small) small.textContent = dur(Date.now() - S.skew - S.live.since)
+  }
+}, 1000)
+
+function renderPending() {
+  const el = $('#pend'); if (!el) return
+  el.innerHTML = S.pending.map(p => p.kind === 'question' ? questionHtml(p) : `
+    <div class="card pending" data-id="${esc(p.id)}">
+      <h3>Permiso · ${esc(p.tool)}</h3>
+      ${p.detail && (p.tool === 'Edit' || p.tool === 'MultiEdit' || p.tool === 'Write')
+        ? `<div style="margin-bottom:10px">${toolView({ tool: p.tool, text: p.summary, detail: p.detail, end: { ok: true } }).body}</div>
+           <div class="kv" style="margin-bottom:8px">${esc(p.detail.file ?? '')}</div>`
+        : `<div class="cmd">${esc(p.detail?.description ? p.detail.description + '\n\n' : '')}${esc(p.summary)}</div>`}
+      ${p.reason ? `<div class="muted" style="margin-bottom:8px">${esc(p.reason)}</div>` : ''}
+      <div class="row"><button class="bad" data-d="deny">Denegar</button><button class="ok" data-d="allow">Permitir</button></div>
+    </div>`).join('')
+  el.querySelectorAll('.pending').forEach(card => {
+    const id = card.dataset.id
+    card.querySelectorAll('[data-d]').forEach(b => b.onclick = () => decide(id, { decision: b.dataset.d }))
+    card.querySelectorAll('.opt').forEach(b => b.onclick = () => pickOption(card, b))
+    const sendQ = card.querySelector('[data-send]')
+    if (sendQ) sendQ.onclick = () => submitQuestion(card)
+  })
+  if (S.pending.length) { navigator.vibrate?.(60); scrollDown() }
+}
+function questionHtml(p) {
+  return `<div class="card pending" data-id="${esc(p.id)}"><h3>Claude pregunta</h3>
+    ${p.questions.map((q, qi) => `<div data-q="${qi}" data-multi="${q.multiSelect ? 1 : 0}" style="margin-bottom:12px">
+      <div style="margin-bottom:6px"><b>${esc(q.question)}</b></div>
+      ${(q.options || []).map(o => `<button class="opt" data-label="${esc(o.label)}">${esc(o.label)}${o.description ? `<small>${esc(o.description)}</small>` : ''}</button>`).join('')}
+      <input data-other placeholder="Otra respuesta…"></div>`).join('')}
+    <div class="row"><button class="bad" data-d="deny">Cancelar</button><button class="primary" data-send>Responder</button></div></div>`
+}
+function pickOption(card, b) {
+  const box = b.closest('[data-q]')
+  if (box.dataset.multi !== '1') box.querySelectorAll('.opt').forEach(o => o !== b && o.classList.remove('sel'))
+  b.classList.toggle('sel')
+  if (card.querySelectorAll('[data-q]').length === 1 && box.dataset.multi !== '1' && b.classList.contains('sel')) submitQuestion(card)
+}
+function submitQuestion(card) {
+  const p = S.pending.find(x => x.id === card.dataset.id)
+  const answers = {}
+  card.querySelectorAll('[data-q]').forEach(box => {
+    const q = p.questions[Number(box.dataset.q)]
+    const picked = [...box.querySelectorAll('.opt.sel')].map(o => o.dataset.label)
+    const other = box.querySelector('[data-other]').value.trim()
+    if (other) picked.push(other)
+    if (picked.length) answers[q.question] = picked.join(', ')
+  })
+  if (!Object.keys(answers).length) return toastInfo('Elige una opción')
+  decide(p.id, { decision: 'allow', answers })
+}
+async function decide(id, body) {
+  try { await api(`/api/session/${encodeURIComponent(S.sid)}/decide`, { id, ...body }) } catch (e) { toastInfo(e.message) }
+  S.pending = S.pending.filter(p => p.id !== id); S.pendKey = ''; renderPending(); renderLive()
+}
+
+function renderAwayBtn() {
+  let b = $('#away')
+  if (!b) {
+    b = document.createElement('button'); b.id = 'away'
+    $('header').insertBefore(b, $('.tabs'))
+    b.onclick = async () => {
+      const r = await api(`/api/session/${encodeURIComponent(S.sid)}/away`, { away: !S.session.away })
+      S.session.away = r.away; renderAwayBtn()
+      toastInfo(r.away ? 'Permisos y preguntas llegarán aquí' : 'Se responden en el PC')
+    }
+  }
+  const on = S.session?.away
+  b.textContent = on ? '📱' : '🖥'
+  b.style.borderColor = on ? 'var(--accent)' : ''
+  b.title = on ? 'Modo fuera: respondes desde el móvil' : 'Modo aquí: se responde en el PC'
+}
+
+function renderQuick() {
+  const list = store.get('quick', DEFAULT_QUICK)
+  $('#quick').innerHTML = list.map(q => `<button>${esc(q)}</button>`).join('') + '<button id="editq">✎</button>'
+  $('#quick').querySelectorAll('button:not(#editq)').forEach(b => b.onclick = () => sendPrompt(b.textContent))
+  $('#editq').onclick = () => {
+    const v = prompt('Respuestas rápidas (separadas por |)', list.join(' | '))
+    if (v != null) { store.set('quick', v.split('|').map(s => s.trim()).filter(Boolean)); renderQuick() }
+  }
+}
+
+async function sendPrompt(text) {
+  const msg = $('#msg')
+  text = (text ?? msg.value).trim(); if (!text) return
+  try {
+    await api(`/api/session/${encodeURIComponent(S.sid)}/prompt`, { text })
+    if (text === msg.value.trim()) { msg.value = ''; S.draft = ''; msg.style.height = 'auto' }
+    clearTimeout(S.timer); render(); scrollDown()
+  } catch (e) { toastInfo(e.message) }
+}
+
+async function setTab(tab) {
+  S.tab = tab
+  document.querySelectorAll('[data-tab]').forEach(b => b.classList.toggle('on', b.dataset.tab === tab))
+  $('#chat').hidden = tab !== 'chat'; $('#diffv').hidden = tab !== 'diff'
+  if (tab !== 'diff') return
+  $('#diffv').innerHTML = '<p class="muted">Cargando…</p>'
+  try {
+    const d = await api(`/api/session/${encodeURIComponent(S.sid)}/diff`)
+    const lines = (d.diff || '').split('\n').map(l => {
+      const c = l.startsWith('diff --git') ? 'f' : l.startsWith('@@') ? 'h' : l.startsWith('+') && !l.startsWith('+++') ? 'a' : l.startsWith('-') && !l.startsWith('---') ? 'd' : ''
+      return c ? `<span class="${c}">${esc(l)}</span>` : esc(l)
+    }).join('\n')
+    $('#diffv').innerHTML = `<p class="muted">${esc(d.last || 'Sin commits / no es repo git')}</p>
+      <div class="gdiff" style="margin-bottom:10px">${esc(d.status || '(sin estado)')}</div>
+      ${d.diff ? `<div class="gdiff">${lines}</div>` : '<p class="muted">Sin cambios sin commitear.</p>'}`
+  } catch (e) { $('#diffv').innerHTML = `<p class="err">${esc(e.message)}</p>` }
+}
+
+async function launchSheet() {
+  const { dirs, machines = [], machine } = await api('/api/recent').catch(() => ({ dirs: [] }))
+  S.launchMachine ??= machine
+  const sh = document.createElement('div'); sh.className = 'sheet'
+  const draw = () => {
+    sh.innerHTML = `<div><h3 style="margin-top:0">Nueva sesión de Claude Code</h3>
+      ${machines.length > 1 ? `<div class="chips">${machines.map(m => `<button data-m="${esc(m)}" class="${m === S.launchMachine ? 'on' : ''}">${esc(m)}</button>`).join('')}</div>` : ''}
+      ${dirs.filter(d => d.machine === S.launchMachine).map(d => `<button class="opt" data-dir="${esc(d.cwd)}" style="font-family:var(--mono);font-size:13px">${esc(d.cwd)}</button>`).join('')}
+      <input id="dir" placeholder="C:\\ruta\\al\\proyecto" style="margin:6px 0 10px">
+      <div class="row"><button id="cx">Cancelar</button><button class="primary" id="ok">Abrir en ${esc(S.launchMachine ?? 'esta PC')}</button></div></div>`
+    sh.querySelectorAll('[data-m]').forEach(b => b.onclick = () => { S.launchMachine = b.dataset.m; draw() })
+    sh.querySelectorAll('[data-dir]').forEach(b => b.onclick = () => { $('#dir', sh).value = b.dataset.dir })
+    $('#cx', sh).onclick = () => sh.remove()
+    $('#ok', sh).onclick = async () => {
+      try { await api('/api/launch', { cwd: $('#dir', sh).value.trim(), machine: S.launchMachine }); sh.remove(); toastInfo(`Abriendo Claude Code en ${S.launchMachine}…`) }
+      catch (e) { toastInfo(e.message) }
+    }
+  }
+  draw()
+  sh.onclick = e => { if (e.target === sh) sh.remove() }
+  document.body.append(sh)
+}
+
+function isAtBottom() { const m = $('#chat'); return !m || m.scrollHeight - m.scrollTop - m.clientHeight < 120 }
+function scrollDown() { const m = $('#chat'); if (m) m.scrollTop = m.scrollHeight }
+function toastInfo(text) {
+  const t = document.createElement('div')
+  t.textContent = text
+  t.style.cssText = 'position:fixed;left:50%;top:calc(14px + env(safe-area-inset-top));transform:translateX(-50%);background:var(--panel);border:1px solid var(--line);padding:8px 14px;border-radius:99px;z-index:9;font-size:14px;max-width:90vw'
+  document.body.append(t); setTimeout(() => t.remove(), 2200)
+}
+
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { clearTimeout(S.timer); render() } })
+if ('serviceWorker' in navigator && isSecureContext) navigator.serviceWorker.register('/sw.js').catch(() => {})
+render()
+</script>
+</body>
+</html>

@@ -1,0 +1,232 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "@fontsource-variable/geist";
+@import "@fontsource-variable/geist-mono";
+@import "streamdown/styles.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+    --font-heading: var(--font-sans);
+    --font-sans: 'Geist Variable', sans-serif;
+    --color-sidebar-ring: var(--sidebar-ring);
+    --color-sidebar-border: var(--sidebar-border);
+    --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+    --color-sidebar-accent: var(--sidebar-accent);
+    --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+    --color-sidebar-primary: var(--sidebar-primary);
+    --color-sidebar-foreground: var(--sidebar-foreground);
+    --color-sidebar: var(--sidebar);
+    --color-chart-5: var(--chart-5);
+    --color-chart-4: var(--chart-4);
+    --color-chart-3: var(--chart-3);
+    --color-chart-2: var(--chart-2);
+    --color-chart-1: var(--chart-1);
+    --color-ring: var(--ring);
+    --color-input: var(--input);
+    --color-border: var(--border);
+    --color-destructive: var(--destructive);
+    --color-accent-foreground: var(--accent-foreground);
+    --color-accent: var(--accent);
+    --color-muted-foreground: var(--muted-foreground);
+    --color-muted: var(--muted);
+    --color-secondary-foreground: var(--secondary-foreground);
+    --color-secondary: var(--secondary);
+    --color-primary-foreground: var(--primary-foreground);
+    --color-primary: var(--primary);
+    --color-popover-foreground: var(--popover-foreground);
+    --color-popover: var(--popover);
+    --color-card-foreground: var(--card-foreground);
+    --color-card: var(--card);
+    --color-foreground: var(--foreground);
+    --color-background: var(--background);
+    --radius-sm: calc(var(--radius) * 0.6);
+    --radius-md: calc(var(--radius) * 0.8);
+    --radius-lg: var(--radius);
+    --radius-xl: calc(var(--radius) * 1.4);
+    --radius-2xl: calc(var(--radius) * 1.8);
+    --radius-3xl: calc(var(--radius) * 2.2);
+    --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+:root {
+    --background: oklch(1 0 0);
+    --foreground: oklch(0.145 0 0);
+    --card: oklch(1 0 0);
+    --card-foreground: oklch(0.145 0 0);
+    --popover: oklch(1 0 0);
+    --popover-foreground: oklch(0.145 0 0);
+    --primary: oklch(0.205 0 0);
+    --primary-foreground: oklch(0.985 0 0);
+    --secondary: oklch(0.97 0 0);
+    --secondary-foreground: oklch(0.205 0 0);
+    --muted: oklch(0.97 0 0);
+    --muted-foreground: oklch(0.556 0 0);
+    --accent: oklch(0.97 0 0);
+    --accent-foreground: oklch(0.205 0 0);
+    --destructive: oklch(0.577 0.245 27.325);
+    --border: oklch(0.922 0 0);
+    --input: oklch(0.922 0 0);
+    --ring: oklch(0.708 0 0);
+    --chart-1: oklch(0.87 0 0);
+    --chart-2: oklch(0.556 0 0);
+    --chart-3: oklch(0.439 0 0);
+    --chart-4: oklch(0.371 0 0);
+    --chart-5: oklch(0.269 0 0);
+    --radius: 0.625rem;
+    --sidebar: oklch(0.985 0 0);
+    --sidebar-foreground: oklch(0.145 0 0);
+    --sidebar-primary: oklch(0.205 0 0);
+    --sidebar-primary-foreground: oklch(0.985 0 0);
+    --sidebar-accent: oklch(0.97 0 0);
+    --sidebar-accent-foreground: oklch(0.205 0 0);
+    --sidebar-border: oklch(0.922 0 0);
+    --sidebar-ring: oklch(0.708 0 0);
+}
+
+.dark {
+    --background: oklch(0.145 0 0);
+    --foreground: oklch(0.985 0 0);
+    --card: oklch(0.205 0 0);
+    --card-foreground: oklch(0.985 0 0);
+    --popover: oklch(0.205 0 0);
+    --popover-foreground: oklch(0.985 0 0);
+    --primary: oklch(0.922 0 0);
+    --primary-foreground: oklch(0.205 0 0);
+    --secondary: oklch(0.269 0 0);
+    --secondary-foreground: oklch(0.985 0 0);
+    --muted: oklch(0.269 0 0);
+    --muted-foreground: oklch(0.708 0 0);
+    --accent: oklch(0.269 0 0);
+    --accent-foreground: oklch(0.985 0 0);
+    --destructive: oklch(0.704 0.191 22.216);
+    --border: oklch(1 0 0 / 10%);
+    --input: oklch(1 0 0 / 15%);
+    --ring: oklch(0.556 0 0);
+    --chart-1: oklch(0.87 0 0);
+    --chart-2: oklch(0.556 0 0);
+    --chart-3: oklch(0.439 0 0);
+    --chart-4: oklch(0.371 0 0);
+    --chart-5: oklch(0.269 0 0);
+    --sidebar: oklch(0.205 0 0);
+    --sidebar-foreground: oklch(0.985 0 0);
+    --sidebar-primary: oklch(0.488 0.243 264.376);
+    --sidebar-primary-foreground: oklch(0.985 0 0);
+    --sidebar-accent: oklch(0.269 0 0);
+    --sidebar-accent-foreground: oklch(0.985 0 0);
+    --sidebar-border: oklch(1 0 0 / 10%);
+    --sidebar-ring: oklch(0.556 0 0);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+    }
+  body {
+    @apply bg-background text-foreground;
+    }
+  html {
+    @apply font-sans;
+    }
+}
+/* ---- pastor theme: warm dark, Claude coral ---- */
+.dark {
+  --background: oklch(0.165 0.006 50);
+  --foreground: oklch(0.95 0.008 70);
+  --card: oklch(0.205 0.008 50);
+  --card-foreground: oklch(0.95 0.008 70);
+  --popover: oklch(0.21 0.008 50);
+  --popover-foreground: oklch(0.95 0.008 70);
+  --primary: oklch(0.68 0.13 41);
+  --primary-foreground: oklch(0.18 0.02 40);
+  --secondary: oklch(0.25 0.008 50);
+  --secondary-foreground: oklch(0.95 0.008 70);
+  --muted: oklch(0.24 0.007 50);
+  --muted-foreground: oklch(0.68 0.012 60);
+  --accent: oklch(0.27 0.02 45);
+  --accent-foreground: oklch(0.95 0.008 70);
+  --destructive: oklch(0.65 0.17 25);
+  --border: oklch(1 0 0 / 9%);
+  --input: oklch(1 0 0 / 12%);
+  --ring: oklch(0.68 0.13 41 / 60%);
+  --radius: 0.9rem;
+}
+
+@theme inline {
+  --font-mono: 'Geist Mono Variable', ui-monospace, 'SF Mono', 'Cascadia Code', Menlo, monospace;
+  --color-coral: oklch(0.68 0.13 41);
+  --color-coral-soft: oklch(0.85 0.07 45);
+  --color-ok: oklch(0.72 0.12 150);
+  --color-warn: oklch(0.8 0.13 80);
+  --animate-shine: shine 2.4s linear infinite;
+  --animate-rise: rise .35s cubic-bezier(.2,.8,.2,1) both;
+  @keyframes shine { to { background-position: -200% 0 } }
+  @keyframes rise { from { opacity: 0; transform: translateY(8px) scale(.99) } to { opacity: 1; transform: none } }
+}
+
+@layer base {
+  html, body, #root { height: 100%; }
+  body {
+    @apply bg-background text-foreground antialiased;
+    overflow: hidden;
+    -webkit-tap-highlight-color: transparent;
+    background-image:
+      radial-gradient(60rem 30rem at 50% -12rem, oklch(0.68 0.13 41 / 0.16), transparent 70%),
+      radial-gradient(40rem 24rem at 110% 110%, oklch(0.55 0.1 300 / 0.08), transparent 70%);
+    background-attachment: fixed;
+  }
+  ::selection { background: oklch(0.68 0.13 41 / 0.35); }
+}
+
+@utility glass {
+  background: oklch(1 0 0 / 4.5%);
+  border: 1px solid oklch(1 0 0 / 8%);
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  box-shadow: 0 1px 0 oklch(1 0 0 / 6%) inset, 0 10px 30px -12px oklch(0 0 0 / 60%);
+}
+@utility text-shine {
+  background: linear-gradient(90deg, var(--muted-foreground) 0%, var(--color-coral) 40%, var(--color-coral-soft) 50%, var(--color-coral) 60%, var(--muted-foreground) 100%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  animation: var(--animate-shine);
+}
+@utility scrollbar-none {
+  scrollbar-width: none;
+  &::-webkit-scrollbar { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .text-shine { animation: none; }
+}
+
+/* ---- Clawd con vida: lanes where pets walk (see components/pastor/pet) ---- */
+.pet-lane { pointer-events: none; }
+.pet-lane .pet-wk { position: absolute; left: 0; bottom: 0; pointer-events: auto; touch-action: none; cursor: grab; will-change: transform; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+.pet-wk .pet-body { position: relative; transform-origin: 50% 100%; transition: transform .12s ease-out; }
+.pet-wk canvas { image-rendering: pixelated; display: block; }
+.pet-wk .pet-pose { position: absolute; left: 50%; bottom: 0; max-width: none; transform: translateX(-50%); image-rendering: pixelated; display: none; pointer-events: none; }
+.pet-wk .pet-gif { image-rendering: pixelated; display: block; max-width: none; pointer-events: none; }
+.pet-wk .pet-shadow { position: absolute; left: 50%; bottom: -2px; height: 4px; border-radius: 50%; background: oklch(0 0 0 / 45%); filter: blur(1.5px); }
+.pet-wk .pet-say, .pet-wk .pet-talk { position: absolute; left: 70%; bottom: 100%; background: var(--popover); border: 1px solid oklch(1 0 0 / 12%); border-radius: 10px 10px 10px 3px; padding: 1px 7px; font-size: 12px; line-height: 1.5; color: var(--muted-foreground); white-space: nowrap; opacity: 0; transform: translateY(4px) scale(.85); transition: opacity .18s, transform .22s cubic-bezier(.3,1.5,.6,1); pointer-events: none; }
+.pet-wk .pet-say.on, .pet-wk .pet-talk.on { opacity: 1; transform: none; }
+.pet-wk.flip .pet-say, .pet-wk.flip .pet-talk { left: auto; right: 70%; border-radius: 10px 10px 3px 10px; }
+.pet-lane .pet-wk.still { pointer-events: none; touch-action: auto; cursor: default; }
+.pet-dots i { display: inline-block; width: 4px; height: 4px; margin: 0 1.5px; border-radius: 50%; background: var(--color-coral); vertical-align: middle; animation: pet-dot 1s infinite ease-in-out; }
+.pet-dots i:nth-child(2) { animation-delay: .15s } .pet-dots i:nth-child(3) { animation-delay: .3s }
+@keyframes pet-dot { 0%, 80%, 100% { transform: translateY(0); opacity: .4 } 40% { transform: translateY(-3px); opacity: 1 } }
+.pet-wk .pet-bang { position: absolute; left: 42%; bottom: 100%; color: var(--color-warn); font: 900 15px system-ui; animation: pet-bob .7s ease-in-out infinite alternate; text-shadow: 0 0 10px oklch(0.8 0.13 80 / 60%); pointer-events: none; }
+@keyframes pet-bob { from { transform: translateY(0) rotate(-6deg) } to { transform: translateY(-4px) rotate(6deg) } }
+.pet-wk .pet-zz { position: absolute; color: #7cc4f0; font: 700 11px var(--font-mono); animation: pet-zz 2.4s ease-out infinite; pointer-events: none; }
+@keyframes pet-zz { 0% { opacity: 0; transform: translate(0,0) scale(.7) } 20% { opacity: 1 } 100% { opacity: 0; transform: translate(12px,-24px) scale(1.2) } }
+.pet-lane .pet-float { position: absolute; pointer-events: none; font-weight: 800; animation: pet-float 1.5s ease-out forwards; z-index: 5; }
+@keyframes pet-float { from { opacity: 0; transform: translate(-50%, 4px) scale(.6) } 15% { opacity: 1; transform: translate(-50%, -4px) scale(1.1) } to { opacity: 0; transform: translate(-50%, -30px) } }
+
+/* A message just sent rises in from the composer. */
+.msg-fly { animation: msg-fly .55s cubic-bezier(.2,.9,.3,1.15) both; transform-origin: 100% 100%; }
+@keyframes msg-fly { from { transform: translateY(80px) scale(.6); opacity: 0 } to { transform: none; opacity: 1 } }
+
+@media (prefers-reduced-motion: reduce) {
+  .pet-dots i, .pet-wk .pet-bang, .pet-wk .pet-zz, .msg-fly, [data-sd-animate] { animation: none; }
+  .pet-lane .pet-wk, .pet-wk .pet-body { transition: none; }
+}
