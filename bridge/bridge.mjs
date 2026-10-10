@@ -15,7 +15,7 @@ import { spawn, execFile } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { StringDecoder } from 'node:string_decoder'
 
-const VERSION = 42
+const VERSION = 43
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const DIR = path.join(os.homedir(), '.claude', 'pastor')
 const CONF = path.join(DIR, 'config.json')
@@ -1163,8 +1163,8 @@ async function handleMod(req, res, url, p) {
       return send(res, 200, { ok: true })
     }
     case '/mod/toolEnd': {
-      const res = b.res && JSON.stringify(b.res).length <= 16_000 ? b.res : undefined
-      patchEvent(s, b.id, { end: { ok: !!b.ok, ms: b.ms, out: String(b.out ?? '').slice(0, 4000), ...(res ? { res } : {}) } })
+      const result = b.res && JSON.stringify(b.res).length <= 16_000 ? b.res : undefined
+      patchEvent(s, b.id, { end: { ok: !!b.ok, ms: b.ms, out: String(b.out ?? '').slice(0, 4000), ...(result ? { res: result } : {}) } })
       return send(res, 200, { ok: true })
     }
     case '/mod/live': {
