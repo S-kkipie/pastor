@@ -24,6 +24,7 @@ export type Activity = { tool: string; text: string }
 export type SessionSummary = {
   // A session of the general agent (one per channel), shown inside the Agent screen.
   agent?: boolean
+  agentType?: string
   id: string
   machine: string
   title: string

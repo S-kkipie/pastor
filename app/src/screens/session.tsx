@@ -1,4 +1,4 @@
-import { ArchiveIcon, SparklesIcon, HistoryIcon, LoaderCircleIcon, AtSignIcon, ChevronLeftIcon, ClockIcon, LoaderIcon, PlayIcon, SquareTerminalIcon, OctagonPauseIcon, OctagonXIcon, ZapIcon, EllipsisVerticalIcon, FolderTreeIcon, GitBranchIcon, MonitorIcon, PowerIcon, SmartphoneIcon, TrashIcon } from 'lucide-react'
+import { AlarmClockIcon, AppWindowIcon, ArchiveIcon, AtSignIcon, ChevronLeftIcon, ClockIcon, EllipsisVerticalIcon, FileCode2Icon, FolderTreeIcon, GitBranchIcon, GlobeIcon, HistoryIcon, LoaderCircleIcon, LoaderIcon, MonitorIcon, OctagonPauseIcon, OctagonXIcon, PlayIcon, PowerIcon, RadioTowerIcon, SmartphoneIcon, SparklesIcon, SquareTerminalIcon, TrashIcon, ZapIcon } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
@@ -19,7 +19,6 @@ import { PetLane, type PetMood } from '@/components/pastor/pet/PetLane'
 import type { Walker } from '@/components/pastor/pet/walker'
 import type { OrbState } from '@/components/pastor/orb'
 import { MessagesButton, MessagesSheet, recentCount } from '@/components/pastor/network'
-import { AlarmClockIcon, AppWindowIcon, FileCode2Icon, GlobeIcon, RadioTowerIcon } from 'lucide-react'
 import { RoutinesScreen } from '@/components/pastor/routines'
 import { BrowserScreen } from '@/components/pastor/browser'
 import { PreviewsSheet } from '@/components/pastor/previews'
@@ -28,7 +27,7 @@ import { isHtml, openHtmlFile } from '@/components/pastor/webviewer'
 import { TasksButton, TasksSheet } from '@/components/pastor/tasks'
 import { StatusBar } from '@/components/pastor/statusbar'
 import { UsageRing } from '@/components/pastor/usage'
-import { api, sessionPath } from '@/lib/api'
+import { api } from '@/lib/api'
 import { shortPath } from '@/lib/format'
 import { planOf } from '@/lib/plan'
 import { SessionContext } from '@/lib/ctx'
@@ -363,7 +362,7 @@ export function SessionScreen({ id, onBack }: { id: string; onBack: () => void }
                 className="flex items-center gap-3 rounded-2xl px-3 py-2.5 text-left active:bg-white/5">
                 <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-violet-500/15 text-violet-300"><GlobeIcon className="size-4" /></span>
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[14px] font-medium">{f.file.split(/[\/]/).pop()}</span>
+                  <span className="block truncate text-[14px] font-medium">{f.file.split(/[\\/]/).pop()}</span>
                   <span className="block truncate font-mono text-[10.5px] text-muted-foreground/70">{shortPath(f.file)}</span>
                 </span>
               </button>
