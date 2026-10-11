@@ -941,16 +941,22 @@ export const register: Register = on => {
     const n = e.messages.length
     const note = `Resumiendo ${n} mensajes${e.instructions ? ` · «${e.instructions.slice(0, 60)}»` : ''}`
     const row = runningCmd?.id
+    // No turn and no command: Claude Code's idle compaction, which runs by
+    // itself a few minutes after a long conversation (200k+) goes quiet.
+    const idle = !turnId && !row
     if (row) patch($, row, { phase: 'compacting', note })
-    live($, { activity: { tool: e.trigger === 'auto' ? 'Auto-compact' : '/compact', text: note } })
-    const r = await next(e)
+    live($, { activity: { tool: idle ? 'Compactando en reposo' : e.trigger === 'auto' ? 'Auto-compact' : '/compact', text: note } })
+    let r: Awaited<ReturnType<typeof next>>
+    try { r = await next(e) } finally { if (idle) live($, { activity: null }) }
     if (r.skip !== undefined) {
       if (row) patch($, row, { note: `Omitido: ${r.skip}` })
       return r
     }
     const delta = { before: r.tokensBefore ?? null, after: r.tokensAfter ?? null, kept: r.messages.length }
+    const sizes = delta.before && delta.after ? `: ${Math.round(delta.before / 1000)}k → ${Math.round(delta.after / 1000)}k tokens` : ''
     if (row) patch($, row, { phase: 'done', note: `Resumidos ${n} mensajes`, ...delta })
-    else event($, { kind: 'info', text: `Contexto compactado automáticamente${delta.before && delta.after ? `: ${Math.round(delta.before / 1000)}k → ${Math.round(delta.after / 1000)}k tokens` : ''}` })
+    else if (idle) event($, { kind: 'info', text: `Contexto compactado en reposo${sizes}. Claude Code lo hace solo cuando una conversación larga queda unos minutos sin uso; se apaga con "idleCompaction": false en settings.json` })
+    else event($, { kind: 'info', text: `Contexto compactado automáticamente${sizes}` })
     void reportUsage($)
     return r
   })
