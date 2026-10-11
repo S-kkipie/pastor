@@ -169,3 +169,19 @@ test('Relay: Claude termina sin decir nada (sesión vencida) — avisa una vez y
   assert.match(got[0], /sin responder/)
   assert.equal(relay.following('S'), false)
 })
+
+test('Relay: avisa del progreso de las herramientas antes de la respuesta', async () => {
+  seq = 900
+  const base = [ev('info', 'conectada')]
+  const u = ev('user', 'edita'), t1 = ev('tool', 'ffprobe', { tool: 'Bash' }), a = ev('assistant', 'Listo'), r = ev('receipt')
+  const t1done = { ...t1, rev: ++seq, end: { ok: true } } // the hub bumps rev when a tool ends
+  const hub = fakeHub([
+    { events: base },
+    { events: [...base, u, t1], status: 'busy' },
+    { events: [...base, u, t1done, a, r], status: 'idle' },
+  ])
+  const log = []
+  const relay = new Relay({ hub, onProgress: (_c, s) => log.push(s.map(x => x.state).join()), onReply: (_c, x) => log.push(`reply:${x.text}`), onPending() {}, onTyping() {}, onSlow() {}, onError() {}, pollMs: 1, sleep: async () => {} })
+  await relay.run('P', 'edita', {})
+  assert.deepEqual(log, ['run', 'ok', 'reply:Listo'])
+})

@@ -8,6 +8,7 @@ import { formatPending, parseReply } from './decisions.mjs'
 import { classify, promptFor } from './filter.mjs'
 import { splitMessage, toWhatsApp } from './format.mjs'
 import { HubClient } from './hub.mjs'
+import { Progress } from './progress.mjs'
 import { Relay } from './relay.mjs'
 import { Router, channelOf, labelOf } from './router.mjs'
 import { startServer } from './server.mjs'
@@ -51,21 +52,36 @@ async function say(ch, text) {
 }
 
 const typingState = new Map() // channel → last typing state sent
+// channel → the message showing the tool calls of the turn in progress.
+const progress = new Map()
+function progressOf(ch) {
+  const n = numberOf(ch)
+  if (!n) return null
+  if (!progress.has(ch)) progress.set(ch, new Progress({ send: t => wa.sendText(n, t).then(m => m?.key), edit: (key, t) => wa.editText(n, key, t) }))
+  return progress.get(ch)
+}
+const closeProgress = ch => progress.get(ch)?.close()
 const relay = new Relay({
   hub,
+  onProgress: async (ctx, steps) => { await progressOf(ctx.channel)?.update(steps) },
   onReply: async (ctx, r) => {
+    await closeProgress(ctx.channel)
     await say(ctx.channel, r.text)
     // Only what the agent wrote in its own salidas/ folder goes out as a file.
     const out = path.resolve(router.dir(ctx.channel), 'salidas') + path.sep
     for (const f of r.files) if (path.resolve(f).startsWith(out) && fs.existsSync(f) && numberOf(ctx.channel)) await wa.sendFile(numberOf(ctx.channel), f).catch(() => {})
   },
-  onPending: async (ctx, p) => { awaiting.set(ctx.channel, ctx.sessionId, p); await say(ctx.channel, formatPending(p)) },
+  onPending: async (ctx, p) => { await closeProgress(ctx.channel); awaiting.set(ctx.channel, ctx.sessionId, p); await say(ctx.channel, formatPending(p)) },
   onTyping: async (ctx, on) => { const n = numberOf(ctx.channel); if (!n || typingState.get(ctx.channel) === !!on) return; typingState.set(ctx.channel, !!on); await wa.typing(n, on) },
-  onSlow: async ctx => say(ctx.channel, '⏳ En eso…'),
+  onSlow: async ctx => { if (!progress.get(ctx.channel)?.msg) await say(ctx.channel, '⏳ En eso…') },
   onError: (_ctx, err) => console.error('relay', err),
   // A turn in flight is on disk until it ends, so a restart picks it up again.
   onStart: (sessionId, afterSeq, text, ctx) => { state.inflight[sessionId] = { channel: ctx.channel, afterSeq, text }; save() },
-  onEnd: sessionId => { delete state.inflight[sessionId]; save() },
+  onEnd: (sessionId, ctx) => {
+    delete state.inflight[sessionId]; save()
+    const p = progress.get(ctx.channel)
+    if (p) { progress.delete(ctx.channel); void p.close() }
+  },
 })
 for (const [sessionId, f] of Object.entries(state.inflight)) {
   void relay.resume(sessionId, f.afterSeq, { channel: f.channel, sessionId }, f.text).catch(err => console.error('resume', err))

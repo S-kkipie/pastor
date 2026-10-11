@@ -104,6 +104,11 @@ export class WhatsApp extends EventEmitter {
   }
   jid(number) { return `${String(number).replace(/\D/g, '')}@s.whatsapp.net` }
   sendText(number, text) { return this.queue(() => this.sock.sendMessage(this.jid(number), { text })) }
+  // Replaces the text of a message this socket sent (WhatsApp allows it for 15 minutes).
+  editText(number, key, text) {
+    if (!key) return Promise.reject(new Error('Sin mensaje que editar'))
+    return this.queue(() => this.sock.sendMessage(this.jid(number), { text, edit: key }))
+  }
   sendFile(number, file, caption) {
     const buf = fs.readFileSync(file)
     const name = path.basename(file)

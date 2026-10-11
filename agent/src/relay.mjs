@@ -1,6 +1,8 @@
 // Sends a prompt to a session and follows it until it is quiet again: each
 // finished turn (a receipt event) becomes one reply; a new pending permission
 // or question is handed over once.
+import { toolSteps } from './progress.mjs'
+
 const OUT_FILE = /\.(html?|png|jpe?g|webp|gif|pdf)$/i
 
 const writtenFiles = turn => [...new Set(turn.filter(e => e.kind === 'tool' && e.tool === 'Write' && e.end?.ok && OUT_FILE.test(e.detail?.file ?? '')).map(e => e.detail.file))]
@@ -38,8 +40,8 @@ const plain = t => String(t ?? '').replace(/​/g, '').trim()
 const pause = ms => new Promise(r => setTimeout(r, ms))
 
 export class Relay {
-  constructor({ hub, onReply, onPending, onTyping, onSlow, onError, onStart, onEnd, pollMs = 1500, slowMs = 60_000, maxMs = 30 * 60_000, sleep = pause }) {
-    Object.assign(this, { hub, onReply, onPending, onTyping, onSlow, onError, onStart, onEnd, pollMs, slowMs, maxMs, sleep })
+  constructor({ hub, onReply, onPending, onTyping, onSlow, onError, onStart, onEnd, onProgress, pollMs = 1500, slowMs = 60_000, maxMs = 30 * 60_000, sleep = pause, now = Date.now }) {
+    Object.assign(this, { hub, onReply, onPending, onTyping, onSlow, onError, onStart, onEnd, onProgress, pollMs, slowMs, maxMs, sleep, now })
     this.followers = new Map() // sessionId → Promise
     this.texts = new Map()     // sessionId → prompts sent while following (to find our turn again)
   }
@@ -86,6 +88,7 @@ export class Relay {
     // after it restarts they start low again: then we reload and find our turn.
     let since = 0, sent = afterSeq, slow = false, sawUser = false, quiet = 0, maxRev = afterSeq, lost = false, lostPolls = 0, resets = 0
     const told = new Set()
+    let stepsSig = '', stepsAt = 0
     const deliver = async reply => {
       sent = Math.max(sent, reply.seq)
       if (resets && delivered.has(reply.text)) return // already sent before the hub restarted
@@ -113,6 +116,13 @@ export class Relay {
         if (u) { afterSeq = u.seq - 1; sent = afterSeq; lost = false; sawUser = true }
         else if (++lostPolls > 20) { afterSeq = Math.max(0, ...events.map(e => e.seq)); sent = afterSeq; lost = false }
         else continue
+      }
+      // The tool calls so far, when they change (and every 10 s, for the clock).
+      const steps = toolSteps(events, afterSeq)
+      const sig = steps.map(x => `${x.seq}${x.state}`).join()
+      if (steps.length && (sig !== stepsSig || this.now() - stepsAt > 10_000)) {
+        stepsSig = sig; stepsAt = this.now()
+        await this.safe(ctx, () => this.onProgress?.(ctx, steps))
       }
       const r = replies(events, afterSeq)
       if (events.some(e => e.seq > afterSeq && e.kind === 'user')) sawUser = true
