@@ -1160,7 +1160,9 @@ export const register: Register = on => {
     }
     if (e.agentId === undefined) {
       turnId = undefined
-      const answer = e.isAborted ? (e.answer || '(interrumpido)') : e.answer
+      const answer = e.isAborted ? (e.answer || '(interrumpido)')
+        : e.reason === 'error' && !e.answer.trim() ? '⚠️ No pude responder: Claude devolvió un error (sesión vencida, límite de uso o fallo de la API). Revísalo en la terminal.'
+          : e.answer
       const isNew = answer.trim() !== '' && answer.trim() !== lastStepText
       event($, { ...(isNew ? { kind: 'assistant', text: answer } : {}), status: 'idle', final: true, summary: answer.slice(0, 300) })
       void reportUsage($, e.usage, true)

@@ -124,6 +124,11 @@ export class Relay {
       if (quiet >= 2) {
         const last = lastAnswer(events, afterSeq)
         if (last && last.seq > sent) { await deliver(last); await this.safe(ctx, () => this.onTyping(ctx, false)); return }
+        // Quiet for a while and nothing said at all: the turn failed (an expired login, an API error).
+        if (!last && sent === afterSeq && quiet >= 6) {
+          await this.safe(ctx, () => this.onReply(ctx, { seq: sent, text: '⚠️ Claude terminó sin responder nada. Puede ser la sesión vencida o un error de la API; revísalo en pastor.', files: [] }))
+          await this.safe(ctx, () => this.onTyping(ctx, false)); return
+        }
       }
     }
     await this.safe(ctx, () => this.onReply(ctx, { seq: sent, text: '⌛ Esto me está tomando mucho. Lo sigues viendo en pastor.', files: [] }))

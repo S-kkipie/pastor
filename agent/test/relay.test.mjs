@@ -157,3 +157,15 @@ test('Relay: run avisa onStart con afterSeq y texto antes de mandar el prompt', 
   await relay.run('S', 'hey', { channel: 'app' })
   assert.deepEqual(marks, [['start', 'S', base.seq, 'hey', 0], ['end', 'S']])
 })
+
+test('Relay: Claude termina sin decir nada (sesión vencida) — avisa una vez y termina', async () => {
+  seq = 900
+  const u = ev('user', 'edita el video')
+  const hub = fakeHub([{ events: [] }, { events: [u], status: 'busy' }, { events: [u], status: 'idle' }])
+  const got = []
+  const relay = new Relay({ hub, onReply: (_c, r) => got.push(r.text), onPending() {}, onTyping() {}, onSlow() {}, onError() {}, pollMs: 1, maxMs: 2000, sleep: async () => {} })
+  await relay.run('S', 'edita el video', {})
+  assert.equal(got.length, 1)
+  assert.match(got[0], /sin responder/)
+  assert.equal(relay.following('S'), false)
+})
