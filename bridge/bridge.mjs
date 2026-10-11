@@ -15,7 +15,7 @@ import { spawn, execFile } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { StringDecoder } from 'node:string_decoder'
 
-const VERSION = 43
+const VERSION = 44
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const DIR = path.join(os.homedir(), '.claude', 'pastor')
 const CONF = path.join(DIR, 'config.json')
@@ -733,6 +733,19 @@ function trustFolder(dir) {
     if (isTrusted(dir)) return true
   }
   return false
+}
+// On a server nobody sits at the tmux terminal: Claude Code's one-time startup
+// offer ("Make auto mode your default?") would stall the session, and taking it
+// switches even a bypass session to auto. Mark it seen, as declining it does.
+function skipStartupOffers() {
+  try {
+    const data = JSON.parse(fs.readFileSync(CLAUDE_JSON, 'utf8'))
+    if (data.hasSeenAutoDefaultNudge) return
+    data.hasSeenAutoDefaultNudge = true
+    const tmp = `${CLAUDE_JSON}.pastor-${process.pid}.tmp`
+    fs.writeFileSync(tmp, JSON.stringify(data, null, 2))
+    fs.renameSync(tmp, CLAUDE_JSON)
+  } catch { /* no ~/.claude.json yet: Claude Code has never run here */ }
 }
 // Sessions the phone opened start in away mode: nobody is at that terminal.
 const awayLaunches = []
@@ -1842,6 +1855,7 @@ async function launchLocal(b) {
     try { trusted = trustFolder(dir) } catch (err) { throw Object.assign(new Error(`No se pudo marcar la carpeta como confiable: ${err.message}`), { status: 500 }) }
   }
   if (b.away !== false) awayLaunches.push({ key: trustKey(dir).toLowerCase(), until: Date.now() + 5 * 60_000 })
+  if (HEADLESS) skipStartupOffers()
   const wsl = process.env.WSL_DISTRO_NAME
   const line = ['claude', ...args].map(shQuote).join(' ')
   // wt.exe splits its command line on ';' unless escaped.

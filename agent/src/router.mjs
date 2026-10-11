@@ -30,7 +30,9 @@ export function settingsFor(config) {
     const asks = !config.permissions.total && config.permissions.groups[g] === 'pregunta'
     ;(asks ? ask : allow).push(...tools)
   }
-  return { enableAllProjectMcpServers: true, permissions: { allow, ask } }
+  // The channel's own mode: the person's default (set from the app's settings) never applies here.
+  const defaultMode = config.permissions.total ? 'bypassPermissions' : 'default'
+  return { enableAllProjectMcpServers: true, permissions: { defaultMode, allow, ask } }
 }
 export function mcpFor({ home, channel, node, mcpPath }) {
   return { mcpServers: { 'pastor-hub': { type: 'stdio', command: node, args: [mcpPath], env: { PASTOR_AGENT_HOME: home, PASTOR_AGENT_CHANNEL: channel } } } }
