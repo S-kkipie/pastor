@@ -31,6 +31,19 @@ test('resolveRef: id, id8, título y errores', () => {
   assert.match(gone, /pastor:laptop\/7f3a2c1e/)
 })
 
+test('resolveRef: una sesión del agente dormida recibe por id pero no se ofrece', () => {
+  const r = [
+    { id: '7f3a2c1e-1111', title: 'pastor-app', online: true },
+    { id: 'a9e00000-5555', title: 'Agente · WhatsApp', online: false, agent: true },
+    { id: 'b9e00000-6666', title: 'Agente · WhatsApp 2', online: true, agent: true },
+  ]
+  assert.deepEqual(resolveRef(r, 'a9e00000', 'vps'), { id: 'a9e00000-5555' })
+  assert.match(resolveRef(r, 'Agente · WhatsApp', 'vps').error, /ya no está/) // by title only when online
+  const gone = resolveRef(r, 'dead0000', 'vps').error
+  assert.match(gone, /pastor:vps\/7f3a2c1e/)
+  assert.doesNotMatch(gone, /a9e00000|b9e00000/)
+})
+
 test('networkRows: quita propia, agente y cerradas; marca máquina; limita a 30', () => {
   const list = [
     { id: 'self0000-1', machine: 'vps', title: 'yo', online: true, status: 'busy' },

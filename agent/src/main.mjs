@@ -91,6 +91,8 @@ for (const [sessionId, f] of Object.entries(state.inflight)) {
 new PeerWatch({
   hub, relay,
   channels: () => Object.entries(state.channels).map(([channel, s]) => ({ channel, sessionId: s.current })),
+  // A reply from another PC waits for a channel's sleeping session: open it again.
+  wake: ch => enqueue(ch, () => router.ensure(ch)),
 }).start()
 
 // A message that could not reach the session: one retry, then a warning.

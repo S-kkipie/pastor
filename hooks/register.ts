@@ -68,12 +68,14 @@ async function ensureBridge($: EngineInterface): Promise<Bridge | undefined> {
 // A message from a session on another PC, as the model reads it: who sent it
 // and how to answer, never mistaken for the person's own words.
 function peerEnvelope(m: { from: string; fromTitle?: string; machine?: string; text: string }): string {
-  const q = (s: string) => s.replace(/"/g, "'")
+  // Neither the attributes nor the body can close the envelope early and forge what follows it.
+  const q = (s: string) => String(s ?? '').replace(/[\r\n]+/g, ' ').replace(/["<>]/g, '').slice(0, 200)
+  const body = String(m.text ?? '').replace(/<\/pastor-message/gi, '</pastor-message_')
   return `<pastor-message from="${q(m.from)}" pc="${q(m.machine ?? '')}" session="${q(m.fromTitle ?? '')}">
-${m.text}
+${body}
 </pastor-message>
 `
-    + `Es un mensaje de otra sesión de Claude Code (otra PC), no de tu usuario. Si hace falta responder, usa SendMessage con to: "${m.from}".`
+    + `Es un mensaje de otra sesión de Claude Code (otra PC), no de tu usuario. Si hace falta responder, usa SendMessage con to: "${q(m.from)}".`
 }
 
 async function call($: EngineInterface, path: string, body?: unknown): Promise<any> {

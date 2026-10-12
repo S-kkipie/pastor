@@ -371,14 +371,26 @@ async function linkPeer(url, code) {
 // The hub tells each linked PC how to reach it back (its own device token for
 // that PC and its URL), so a PC can list and message sessions on other PCs.
 async function pushUplink(name) {
-  const url = conf.publicUrl || ((h => h ? `http://${h}/` : '')(await tsHost()))
-  if (!url) return false
+  const url = conf.publicUrl || await probeOwnUrl()
+  if (!url) { console.error(`uplink: no encuentro una URL propia que responda; ${name} no podrá escribir a otras PCs (pon publicUrl)`); return false }
   const key = `pc-${name}`
   if (!conf.devices[key]) { conf.devices[key] = { token: crypto.randomBytes(32).toString('hex'), paired: new Date().toISOString() }; saveConf(conf) }
   try {
     const r = await peerFetch(name, 'api/uplink', { method: 'POST', body: JSON.stringify({ machine: MACHINE, url, token: conf.devices[key].token }), timeoutMs: 8000 })
     return r.status === 200
   } catch { return false }
+}
+// Where this hub answers on the tailnet: `tailscale serve` may serve https
+// (certs) or only http, so ask /api/ping on each and keep the first that answers.
+async function probeOwnUrl() {
+  const host = await tsHost()
+  if (!host) return ''
+  const ip = await resolvePeerIp(host)
+  for (const base of [`https://${host}/`, `http://${host}/`]) {
+    const r = await rawRequest(new URL('api/ping', base).href, { ip, timeoutMs: 3000 }).catch(() => null)
+    if (r?.status === 200 && r.body?.pastor === true) return base
+  }
+  return ''
 }
 const pushUplinks = () => Promise.all(Object.keys(conf.peers).map(n => pushUplink(n)))
 async function uplinkFetch(pathAndQuery, init = {}) {
@@ -1147,13 +1159,16 @@ async function deliverPeer(msg, { isHop = false } = {}) {
   if (bad) return { ok: false, reason: bad }
   const to = parseAddress(msg.to)
   if (!to) return { ok: false, reason: 'dirección inválida: usa pastor:<pc>/<id>' }
-  if (!peerBrake.hit(`${msg.from}>${msg.to}`)) return { ok: false, reason: 'demasiados mensajes entre estas dos sesiones; espera unos minutos' }
+  if (!peerBrake.hit(`${msg.from}>${String(msg.to).trim().toLowerCase()}`)) return { ok: false, reason: 'demasiados mensajes entre estas dos sesiones; espera unos minutos' }
   if (to.machine === MACHINE) {
-    const rows = [...sessions.values()].map(s => ({ id: s.id, title: s.realTitle || s.title, online: Date.now() - s.lastSeen < OFFLINE_MS }))
+    const rows = [...sessions.values()].map(s => ({ id: s.id, title: s.realTitle || s.title, online: Date.now() - s.lastSeen < OFFLINE_MS, agent: isAgentSession(s) }))
     const hit = resolveRef(rows, to.ref, MACHINE)
     if (hit.error) return { ok: false, reason: hit.error }
     const s = sessions.get(hit.id)
     s.inbox.push({ type: 'peer', from: msg.from, fromTitle: msg.fromTitle, machine: msg.fromMachine, text: msg.text })
+    // A WhatsApp-agent session asleep: the message waits in its inbox and the
+    // agent (which sees `wake` in the session view) resumes it to deliver it.
+    if (isAgentSession(s) && Date.now() - s.lastSeen >= OFFLINE_MS) s.wake = true
     return { ok: true }
   }
   const body = JSON.stringify(msg)
@@ -1163,7 +1178,8 @@ async function deliverPeer(msg, { isHop = false } = {}) {
       return r.body?.ok ? { ok: true } : { ok: false, reason: r.body?.reason ?? r.body?.error ?? `${to.machine} no lo aceptó` }
     }
     if (conf.uplink && !isHop) {
-      const r = await uplinkFetch('api/peer-message', { method: 'POST', body, timeoutMs: 10_000 })
+      // Longer than the hub's own 10 s leg to the target, so the hub answers first.
+      const r = await uplinkFetch('api/peer-message', { method: 'POST', body, timeoutMs: 15_000 })
       return r.body?.ok ? { ok: true } : { ok: false, reason: r.body?.reason ?? r.body?.error ?? 'el hub no lo aceptó' }
     }
   } catch { return { ok: false, reason: `${conf.peers[to.machine] ? to.machine : 'el hub'} no responde` } }
@@ -1177,7 +1193,7 @@ async function handleMod(req, res, url, p) {
   if (p === '/mod/poll') {
     const s = sessions.get(url.searchParams.get('session'))
     if (!s) return send(res, 404, { error: 'unknown session' })
-    s.lastSeen = Date.now()
+    s.lastSeen = Date.now(); s.wake = false
     // Presence, for routing asks: the session open on a phone now; a phone used lately at all.
     const phoneAt = Math.max(0, ...deviceSeen.values())
     return send(res, 200, { inbox: s.inbox.splice(0), away: s.away, watching: Date.now() - (s.watchedAt ?? 0) < 8_000, phoneAgo: phoneAt ? Date.now() - phoneAt : null })
@@ -1215,14 +1231,14 @@ async function handleMod(req, res, url, p) {
   }
   if (p === '/mod/unlink') {
     const had = !!conf.peers[b.name]
-    delete conf.peers[b.name]; saveConf(conf)
+    delete conf.peers[b.name]; delete conf.devices['pc-' + b.name]; saveConf(conf)
     return send(res, had ? 200 : 404, { ok: had })
   }
   if (p === '/mod/register') {
     if (typeof b.id !== 'string' || !b.id) return send(res, 400, { error: 'id' })
     const prev = sessions.get(b.id)
     const s = prev ?? { id: b.id, events: [], pending: [], inbox: [], away: awayOnRegister(b.cwd), status: 'idle', updated: 0, live: null }
-    Object.assign(s, { cwd: b.cwd, title: b.title || path.basename(b.cwd || '') || b.id.slice(0, 8), lastSeen: Date.now() })
+    Object.assign(s, { cwd: b.cwd, title: b.title || path.basename(b.cwd || '') || b.id.slice(0, 8), lastSeen: Date.now(), wake: false })
     if (Number.isInteger(b.pid)) s.pid = b.pid
     // A session re-registering after a bridge restart says whether it is mid-turn.
     if (b.status === 'busy' || b.status === 'idle') { s.status = b.status; if (b.status === 'busy' && !s.live) s.live = { since: Date.now(), text: '', thinking: true, activity: null } }
@@ -1974,6 +1990,7 @@ async function launchLocal(b) {
   return { ok: true, cwd: dir, trusted }
 }
 
+const PC_ROUTES = ['/api/info', '/api/sessions', '/api/peer-message']
 async function handleApi(req, res, url, p) {
   if (p === '/api/pair' && req.method === 'POST') {
     if (Date.now() < pairLockedUntil) return send(res, 429, { error: 'Demasiados intentos, espera un minuto' })
@@ -1994,6 +2011,8 @@ async function handleApi(req, res, url, p) {
   if (p === '/api/ping') return send(res, 200, { pastor: true, machine: MACHINE, version: VERSION })
   const device = deviceOf(req)
   if (!device) return send(res, 401, { error: 'unpaired' })
+  // A PC's uplink token (stored on that PC) only lists sessions and sends messages.
+  if (device.startsWith('pc-') && !PC_ROUTES.includes(p)) return send(res, 403, { error: 'no permitido para una PC' })
   const isHop = req.headers['x-pastor-hop'] === '1'
 
   if (p === '/api/info') return send(res, 200, { machine: MACHINE, version: VERSION })
@@ -2043,7 +2062,7 @@ async function handleApi(req, res, url, p) {
       }
       if (action === 'unlink') {
         const had = !!conf.peers[b.name]
-        delete conf.peers[b.name]; saveConf(conf)
+        delete conf.peers[b.name]; delete conf.devices['pc-' + b.name]; saveConf(conf)
         return send(res, had ? 200 : 404, had ? { ok: true } : { error: 'No está enlazada' })
       }
       return send(res, 404, { error: 'no action' })
@@ -2401,7 +2420,7 @@ async function handleApi(req, res, url, p) {
     const page = pageEvents(s.events, url)
     if (page.before) return send(res, 200, page)
     return send(res, 200, {
-      session: summary(s), events: page.events, older: page.older, pending: s.pending,
+      session: { ...summary(s), wake: !!s.wake }, events: page.events, older: page.older, pending: s.pending,
       live: s.live, seq, now: Date.now(), tasks: s.tasks ?? [], agents: s.agents ?? [],
       contextHistory: s.contextHistory ?? [], workflows: s.workflows ?? [], messages: s.messages ?? [],
     })

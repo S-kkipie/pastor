@@ -16,16 +16,20 @@ export function parseAddress(to) {
 
 export const addressOf = (machine, id) => `${PREFIX}${machine}/${String(id).slice(0, 8)}`
 
+// rows: { id, title, online, agent }. A WhatsApp-agent session (agent) still
+// takes a reply by id while it sleeps (the agent wakes it), but is never
+// offered in the "vivas" list: a reply must not land on another channel.
 export function resolveRef(rows, ref, machine) {
   const live = rows.filter(r => r.online)
-  const exact = live.find(r => r.id === ref)
+  const reach = rows.filter(r => r.online || r.agent)
+  const exact = reach.find(r => r.id === ref)
   if (exact) return { id: exact.id }
-  const byId = live.filter(r => r.id.startsWith(ref))
+  const byId = reach.filter(r => r.id.startsWith(ref))
   if (ref.length >= 8 && byId.length === 1) return { id: byId[0].id }
   const byTitle = live.filter(r => String(r.title ?? '').toLowerCase() === ref.toLowerCase())
   if (byTitle.length === 1) return { id: byTitle[0].id }
   if (byId.length > 1 || byTitle.length > 1 || (byId.length && ref.length < 8)) return { error: 'ambiguo: usa el id de 8 letras' }
-  const names = live.slice(0, 10).map(r => addressOf(machine, r.id))
+  const names = live.filter(r => !r.agent).slice(0, 10).map(r => addressOf(machine, r.id))
   return { error: `la sesión ya no está; vivas en esta PC: ${names.length ? names.join(', ') : 'ninguna'}` }
 }
 
