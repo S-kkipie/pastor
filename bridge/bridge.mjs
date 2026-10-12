@@ -15,7 +15,7 @@ import { spawn, execFile } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { StringDecoder } from 'node:string_decoder'
 
-const VERSION = 45
+const VERSION = 46
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const DIR = path.join(os.homedir(), '.claude', 'pastor')
 const CONF = path.join(DIR, 'config.json')
@@ -121,6 +121,7 @@ if (['code', 'link', 'unlink', 'peers', 'status'].includes(cmd)) {
     const r = await post('/mod/peers')
     console.log(`hub ${r.machine} · puerto ${conf.port} · ${Object.keys(loadConf().devices).length} dispositivo(s) · código ${loadConf().pairCode}`)
     for (const p of r.peers) console.log(`  ${p.online ? '●' : '○'} ${p.name}  ${p.url}`)
+    if (r.uplink) console.log(`  hub: ${r.uplink.online ? '●' : '○'} ${r.uplink.machine}`)
     if (!r.peers.length) console.log('  sin PCs enlazadas: bridge.mjs link <url> <código>')
   }
   process.exit(0)
@@ -363,7 +364,31 @@ async function linkPeer(url, code) {
   if (name === MACHINE) throw new Error('ese bridge es esta misma PC')
   conf.peers[name] = { url: base.href, ...(ip ? { ip } : {}), token: pair.body.token, linked: new Date().toISOString() }
   saveConf(conf)
+  void pushUplink(name)
   return name
+}
+// The hub tells each linked PC how to reach it back (its own device token for
+// that PC and its URL), so a PC can list and message sessions on other PCs.
+async function pushUplink(name) {
+  const url = conf.publicUrl || ((h => h ? `http://${h}/` : '')(await tsHost()))
+  if (!url) return false
+  const key = `pc-${name}`
+  if (!conf.devices[key]) { conf.devices[key] = { token: crypto.randomBytes(32).toString('hex'), paired: new Date().toISOString() }; saveConf(conf) }
+  try {
+    const r = await peerFetch(name, 'api/uplink', { method: 'POST', body: JSON.stringify({ machine: MACHINE, url, token: conf.devices[key].token }), timeoutMs: 8000 })
+    return r.status === 200
+  } catch { return false }
+}
+const pushUplinks = () => Promise.all(Object.keys(conf.peers).map(n => pushUplink(n)))
+async function uplinkFetch(pathAndQuery, init = {}) {
+  const up = conf.uplink
+  if (!up) throw new Error('sin uplink')
+  const base = new URL(up.url)
+  const ip = await resolvePeerIp(base.hostname)
+  return rawRequest(new URL(pathAndQuery, base).href, {
+    method: init.method, body: init.body, ip, timeoutMs: init.timeoutMs ?? 8000,
+    headers: { 'content-type': 'application/json', authorization: `Bearer ${up.token}` },
+  })
 }
 
 const WEB = path.join(HERE, 'web')
@@ -1112,7 +1137,8 @@ async function handleMod(req, res, url, p) {
       const ok = await peerFetch(name, 'api/info').then(r => r.status === 200, () => false)
       return { name, url: peer.url, online: ok }
     }))
-    return send(res, 200, { machine: MACHINE, peers })
+    const uplink = conf.uplink ? { machine: conf.uplink.machine, online: await uplinkFetch('api/info').then(r => r.status === 200, () => false) } : null
+    return send(res, 200, { machine: MACHINE, peers, uplink })
   }
   const b = await readBody(req)
   if (p === '/mod/link') {
@@ -1967,6 +1993,17 @@ async function handleApi(req, res, url, p) {
     })
   }
 
+  // From the hub that linked this PC (its device is named hub-<machine>): how to reach it back.
+  if (p === '/api/uplink' && req.method === 'POST') {
+    if (!device.startsWith('hub-')) return send(res, 403, { error: 'solo el hub que enlazó esta PC' })
+    const b = await readBody(req)
+    const u = String(b.url ?? '')
+    if (!/^https?:\/\//.test(u) || !b.token || !b.machine) return send(res, 400, { error: 'uplink inválido' })
+    conf.uplink = { machine: String(b.machine).toLowerCase(), url: u, token: String(b.token), at: new Date().toISOString() }
+    saveConf(conf)
+    return send(res, 200, { ok: true })
+  }
+
   if (p === '/api/sessions') {
     const all = url.searchParams.get('all') === '1'
     const list = [...sessions.values()].filter(s => all || !isAgentSession(s)).map(summary)
@@ -2394,5 +2431,7 @@ const server = http.createServer(async (req, res) => {
 
 server.on('error', err => { console.error(err); process.exit(1) })
 server.listen(conf.port, '127.0.0.1')
+setTimeout(() => void pushUplinks(), 5000)
+setInterval(() => void pushUplinks(), 6 * 3600_000)
 setInterval(refreshTitles, 30_000)
 setInterval(() => { for (const s of sessions.values()) checkDone(s) }, 5_000)
