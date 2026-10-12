@@ -14,6 +14,7 @@ import crypto from 'node:crypto'
 import { spawn, execFile } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { StringDecoder } from 'node:string_decoder'
+import { parseAddress, addressOf, resolveRef, networkRows, formatNetwork, RateLimit, checkText } from './peers.mjs'
 
 const VERSION = 46
 const HERE = path.dirname(fileURLToPath(import.meta.url))
@@ -1120,6 +1121,55 @@ function fuzzy(hay, needle, base) {
   return score
 }
 
+async function networkSessions({ all = false, isHop = false } = {}) {
+  const list = [...sessions.values()].filter(s => all || !isAgentSession(s)).map(summary)
+  const pureHub = !CAN_LAUNCH && sessions.size === 0 && Object.keys(conf.peers).length > 0
+  const machines = pureHub ? [] : [{ name: MACHINE, online: true, local: true }]
+  if (!isHop) {
+    await Promise.all(Object.keys(conf.peers).map(async name => {
+      try {
+        const r = await peerFetch(name, 'api/sessions')
+        if (r.status !== 200) throw new Error(r.body.error)
+        for (const s of r.body.sessions) list.push({ ...s, id: `${name}~${s.id}`, machine: name })
+        machines.push({ name, online: true })
+      } catch { machines.push({ name, online: false }) }
+    }))
+  }
+  list.sort((a, b) => (b.pending - a.pending) || (b.online - a.online) || (b.lastSeen - a.lastSeen))
+  return { list, machines, pureHub }
+}
+
+const peerBrake = new RateLimit()
+// Deliver a message to a session here, or pass it on: to a linked PC (one hop)
+// or, from a PC, to the hub. Never throws: the reason goes back to the model.
+async function deliverPeer(msg, { isHop = false } = {}) {
+  const bad = checkText(msg.text)
+  if (bad) return { ok: false, reason: bad }
+  const to = parseAddress(msg.to)
+  if (!to) return { ok: false, reason: 'dirección inválida: usa pastor:<pc>/<id>' }
+  if (!peerBrake.hit(`${msg.from}>${msg.to}`)) return { ok: false, reason: 'demasiados mensajes entre estas dos sesiones; espera unos minutos' }
+  if (to.machine === MACHINE) {
+    const rows = [...sessions.values()].map(s => ({ id: s.id, title: s.realTitle || s.title, online: Date.now() - s.lastSeen < OFFLINE_MS }))
+    const hit = resolveRef(rows, to.ref, MACHINE)
+    if (hit.error) return { ok: false, reason: hit.error }
+    const s = sessions.get(hit.id)
+    s.inbox.push({ type: 'peer', from: msg.from, fromTitle: msg.fromTitle, machine: msg.fromMachine, text: msg.text })
+    return { ok: true }
+  }
+  const body = JSON.stringify(msg)
+  try {
+    if (conf.peers[to.machine] && !isHop) {
+      const r = await peerFetch(to.machine, 'api/peer-message', { method: 'POST', body, timeoutMs: 10_000 })
+      return r.body?.ok ? { ok: true } : { ok: false, reason: r.body?.reason ?? r.body?.error ?? `${to.machine} no lo aceptó` }
+    }
+    if (conf.uplink && !isHop) {
+      const r = await uplinkFetch('api/peer-message', { method: 'POST', body, timeoutMs: 10_000 })
+      return r.body?.ok ? { ok: true } : { ok: false, reason: r.body?.reason ?? r.body?.error ?? 'el hub no lo aceptó' }
+    }
+  } catch { return { ok: false, reason: `${conf.peers[to.machine] ? to.machine : 'el hub'} no responde` } }
+  return { ok: false, reason: `PC desconocida: ${to.machine}` }
+}
+
 async function handleMod(req, res, url, p) {
   if (!safeEq(req.headers['x-pastor-secret'] ?? '', conf.secret)) return send(res, 403, { error: 'secret' })
   if (p === '/mod/health') return send(res, 200, { ok: true, version: VERSION, machine: MACHINE })
@@ -1140,7 +1190,25 @@ async function handleMod(req, res, url, p) {
     const uplink = conf.uplink ? { machine: conf.uplink.machine, online: await uplinkFetch('api/info').then(r => r.status === 200, () => false) } : null
     return send(res, 200, { machine: MACHINE, peers, uplink })
   }
+  if (p === '/mod/network') {
+    const self = url.searchParams.get('session') ?? ''
+    try {
+      let list
+      if (conf.uplink) {
+        const r = await uplinkFetch('api/sessions')
+        if (r.status !== 200) throw new Error()
+        // The hub's own rows come without "~": they are the hub's machine.
+        list = r.body.sessions.map(s => s.id.includes('~') ? s : { ...s, machine: conf.uplink.machine })
+      } else list = (await networkSessions()).list
+      return send(res, 200, { text: formatNetwork(networkRows(list, { self, selfMachine: MACHINE })) })
+    } catch { return send(res, 200, { text: formatNetwork({ error: 'el hub no responde' }) }) }
+  }
   const b = await readBody(req)
+  if (p === '/mod/peer-send') {
+    const s = sessions.get(String(b.session ?? ''))
+    if (!s) return send(res, 200, { ok: false, reason: 'esta sesión no está registrada en pastor' })
+    return send(res, 200, await deliverPeer({ from: addressOf(MACHINE, s.id), fromTitle: s.realTitle || s.title || '', fromMachine: MACHINE, to: String(b.to ?? ''), text: String(b.text ?? '') }))
+  }
   if (p === '/mod/link') {
     try { return send(res, 200, { ok: true, name: await linkPeer(String(b.url), String(b.code)) }) }
     catch (err) { return send(res, 400, { error: String(err.message ?? err) }) }
@@ -2005,22 +2073,13 @@ async function handleApi(req, res, url, p) {
   }
 
   if (p === '/api/sessions') {
-    const all = url.searchParams.get('all') === '1'
-    const list = [...sessions.values()].filter(s => all || !isAgentSession(s)).map(summary)
-    const pureHub = !CAN_LAUNCH && sessions.size === 0 && Object.keys(conf.peers).length > 0
-    const machines = pureHub ? [] : [{ name: MACHINE, online: true, local: true }]
-    if (!isHop) {
-      await Promise.all(Object.keys(conf.peers).map(async name => {
-        try {
-          const r = await peerFetch(name, 'api/sessions')
-          if (r.status !== 200) throw new Error(r.body.error)
-          for (const s of r.body.sessions) list.push({ ...s, id: `${name}~${s.id}`, machine: name })
-          machines.push({ name, online: true })
-        } catch { machines.push({ name, online: false }) }
-      }))
-    }
-    list.sort((a, b) => (b.pending - a.pending) || (b.online - a.online) || (b.lastSeen - a.lastSeen))
+    const { list, machines, pureHub } = await networkSessions({ all: url.searchParams.get('all') === '1', isHop })
     return send(res, 200, { sessions: list, machines, machine: MACHINE, hub: pureHub, device })
+  }
+
+  if (p === '/api/peer-message' && req.method === 'POST') {
+    const b = await readBody(req)
+    return send(res, 200, await deliverPeer({ from: String(b.from ?? ''), fromTitle: String(b.fromTitle ?? ''), fromMachine: String(b.fromMachine ?? ''), to: String(b.to ?? ''), text: String(b.text ?? '') }, { isHop }))
   }
 
   if (p === '/api/recent') {
