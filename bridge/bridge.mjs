@@ -15,7 +15,7 @@ import { spawn, execFile } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { StringDecoder } from 'node:string_decoder'
 
-const VERSION = 44
+const VERSION = 45
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const DIR = path.join(os.homedir(), '.claude', 'pastor')
 const CONF = path.join(DIR, 'config.json')
@@ -1858,8 +1858,9 @@ async function launchLocal(b) {
   if (HEADLESS) skipStartupOffers()
   const wsl = process.env.WSL_DISTRO_NAME
   const line = ['claude', ...args].map(shQuote).join(' ')
-  // wt.exe splits its command line on ';' unless escaped.
-  const wt = list => list.map(a => a.replace(/;/g, '\\;'))
+  // One Windows Terminal window named "pastor", a tab per session (opened if it
+  // is not there yet). wt.exe splits its command line on ';' unless escaped.
+  const wt = list => ['-w', 'pastor', 'nt', ...list.map(a => a.replace(/;/g, '\\;'))]
   const [bin, argv] = process.platform === 'win32'
     ? ['wt.exe', wt(['-d', dir, 'claude', ...args])]
     : wsl
