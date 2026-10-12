@@ -8,6 +8,7 @@ import { formatPending, parseReply } from './decisions.mjs'
 import { classify, promptFor } from './filter.mjs'
 import { splitMessage, toWhatsApp } from './format.mjs'
 import { HubClient } from './hub.mjs'
+import { PeerWatch } from './peerwatch.mjs'
 import { Progress } from './progress.mjs'
 import { Relay } from './relay.mjs'
 import { Router, channelOf, labelOf } from './router.mjs'
@@ -86,6 +87,11 @@ const relay = new Relay({
 for (const [sessionId, f] of Object.entries(state.inflight)) {
   void relay.resume(sessionId, f.afterSeq, { channel: f.channel, sessionId }, f.text).catch(err => console.error('resume', err))
 }
+// Answers from sessions on other PCs start turns of their own: follow them too.
+new PeerWatch({
+  hub, relay,
+  channels: () => Object.entries(state.channels).map(([channel, s]) => ({ channel, sessionId: s.current })),
+}).start()
 
 // A message that could not reach the session: one retry, then a warning.
 function failed(item) {
