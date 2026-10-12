@@ -23,6 +23,8 @@ function fakeBridge(on: On) {
       case '/mod/away': bridge.away = body.away; return json({ ok: true }) as never
       case '/mod/pending': bridge.pending.push(body.item); return json({ ok: true }) as never
       case '/mod/event': bridge.events.push(body); return json({ ok: true }) as never
+      case '/mod/peer-send': return json(body.to === 'pastor:laptop/7f3a2c1e' ? { ok: true } : { ok: false, reason: 'la sesión ya no está; vivas en esta PC: ninguna' }) as never
+      case '/mod/network': return json({ text: 'Otras PCs (pastor) — escríbeles con SendMessage usando la dirección:\n- pastor:laptop/7f3a2c1e · "pastor-app" · laptop · quieta' }) as never
       default: return json({ ok: true }) as never
     }
   })
@@ -127,6 +129,47 @@ describe('pastor', () => {
     expect(msgs.length).toBe(2)
     expect(msgs[0]).toMatchObject({ dir: 'out', from: 'Claude', to: 'scout', toAgentId: 'ag-1', text: 'revisa el bridge' })
     expect(msgs[1]).toMatchObject({ dir: 'in', from: 'researcher', to: 'Claude', kind: 'peer', text: 'terminé' })
+  })
+
+  test('SendMessage a pastor: lo entrega el bridge, sin pasar al motor', async ($, on) => {
+    mock.clock(on)
+    const bridge = fakeBridge(on)
+    let core = 0
+    on('session.send', () => { core++; return { isDelivered: true } as never })
+    await $.session.start({ cwd: 'C:/proj', surface: null, isInteractive: true })
+    const ok = await $.session.send({ to: 'pastor:laptop/7f3a2c1e', text: 'corre los tests', origin: { kind: 'model' } } as never)
+    expect(ok.isDelivered).toBe(true)
+    expect(bridge.posts['/mod/peer-send']).toEqual({ session: 'sess-1', to: 'pastor:laptop/7f3a2c1e', text: 'corre los tests' })
+    const no = await $.session.send({ to: 'pastor:laptop/deadbeef', text: 'x', origin: { kind: 'model' } } as never)
+    expect(no.isDelivered).toBe(false)
+    expect((no as any).reason).toContain('ya no está')
+    expect(core).toBe(0)
+  })
+
+  test('ListAgents añade las otras PCs como context', async ($, on) => {
+    mock.clock(on)
+    fakeBridge(on)
+    on('tool.call', () => ({ result: { agents: [] }, text: 'No agents', ref: 1 }) as never)
+    await $.session.start({ cwd: 'C:/proj', surface: null, isInteractive: true })
+    const r = await $.tool.call({ tool: 'ListAgents', input: {}, tool_use_id: 't9' } as never)
+    expect((r as any).context.join('\n')).toContain('pastor:laptop/7f3a2c1e')
+  })
+
+  test('un mensaje de otra PC entra como turno con sobre, sin interrumpir', async ($, on) => {
+    const clock = mock.clock(on)
+    const bridge = fakeBridge(on)
+    const submitted: any[] = []
+    let aborted = 0
+    on('prompt.submit', ($, e) => { submitted.push(e); return { text: e.text } as never })
+    on('turn.abort', () => { aborted++; return { value: undefined } as never })
+    await $.session.start({ cwd: 'C:/proj', surface: null, isInteractive: true })
+    bridge.inbox.push({ type: 'peer', from: 'pastor:vps/91bd0e44', fromTitle: 'Agente · WhatsApp', machine: 'vps', text: 'corre los tests' })
+    await clock.advance(1100)
+    const text = submitted.map(s => s.text).join('\n')
+    expect(text).toContain('<pastor-message from="pastor:vps/91bd0e44" pc="vps" session="Agente · WhatsApp">')
+    expect(text).toContain('corre los tests')
+    expect(text).toContain('SendMessage con to: "pastor:vps/91bd0e44"')
+    expect(aborted).toBe(0)
   })
 
   test('a background workflow run is tracked from its call to its notification', async ($, on) => {

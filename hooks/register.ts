@@ -21,6 +21,7 @@ type InboxItem =
   | { type: 'close' }
   | { type: 'agentMsg'; id: string; text: string }
   | { type: 'agentStop'; id: string }
+  | { type: 'peer'; from: string; fromTitle?: string; machine?: string; text: string }
   | { type: 'agentLog'; id: string }
   | { type: 'abort' }
   | ({ type: 'decide'; id: string } & Decision)
@@ -62,6 +63,17 @@ async function ensureBridge($: EngineInterface): Promise<Bridge | undefined> {
     $.ui.log(`pastor: no pude arrancar el bridge: ${String(err)}`, { to: 'debug' })
     return undefined
   }
+}
+
+// A message from a session on another PC, as the model reads it: who sent it
+// and how to answer, never mistaken for the person's own words.
+function peerEnvelope(m: { from: string; fromTitle?: string; machine?: string; text: string }): string {
+  const q = (s: string) => s.replace(/"/g, "'")
+  return `<pastor-message from="${q(m.from)}" pc="${q(m.machine ?? '')}" session="${q(m.fromTitle ?? '')}">
+${m.text}
+</pastor-message>
+`
+    + `Es un mensaje de otra sesión de Claude Code (otra PC), no de tu usuario. Si hace falta responder, usa SendMessage con to: "${m.from}".`
 }
 
 async function call($: EngineInterface, path: string, body?: unknown): Promise<any> {
@@ -172,6 +184,10 @@ async function poll($: EngineInterface) {
           phoneTexts.push(text)
           void $.prompt.submit({ text, asUser: true })
         }
+      } else if (item.type === 'peer') {
+        $.ui.toast(`📨 ${item.machine ?? ''} · ${item.text.slice(0, 70)}`)
+        recordMessage({ dir: 'in', from: `${item.fromTitle || item.from} (${item.machine ?? '?'})`, to: 'Claude', kind: 'pastor', text: item.text })
+        void $.prompt.submit({ text: peerEnvelope(item) })
       } else if (item.type === 'command') {
         void runCommand($, item)
       } else if (item.type === 'config') {
@@ -1082,6 +1098,10 @@ export const register: Register = on => {
         })
       }
     } catch {}
+    if (e.to.toLowerCase().startsWith('pastor:')) {
+      const r = await call($, '/mod/peer-send', { session: sessionId, to: e.to, text: e.text })
+      return r?.ok ? { isDelivered: true } : { isDelivered: false, reason: r?.reason ?? 'el bridge de pastor no responde' }
+    }
     return next(e)
   })
 
@@ -1183,6 +1203,15 @@ export const register: Register = on => {
 
   // Mirror tool calls with their input and result; in away mode the phone
   // answers AskUserQuestion.
+  // ListAgents lists this machine; pastor adds the live sessions of the other PCs.
+  on('tool.call', { tool: 'ListAgents' }, async ($, e, next) => {
+    const r = await next(e)
+    if (r.deny !== undefined || r.isError) return r
+    const net = await call($, `/mod/network?session=${encodeURIComponent(sessionId)}`)
+    const text = typeof net?.text === 'string' ? net.text : 'Otras PCs (pastor): el bridge de pastor no responde.'
+    return { ...r, context: [...(r.context ?? []), text] }
+  })
+
   on('tool.call', async ($, e, next) => {
     if (e.tool === 'AskUserQuestion' && e.agentId === undefined) {
       // Asked in both places at once: the terminal's own dialog and the phone.
