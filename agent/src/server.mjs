@@ -5,6 +5,7 @@ import http from 'node:http'
 const ROUTES = {
   'GET /status': 'status', 'GET /config': 'getConfig', 'POST /config': 'setConfig', 'GET /activity': 'activity', 'GET /qr': 'qr',
   'POST /send': 'send', 'POST /activity': 'logActivity', 'POST /channel': 'channel', 'POST /relink': 'relink',
+  'POST /chat': 'chat', 'POST /say': 'say', 'POST /stop': 'stop',
 }
 
 export function startServer({ port, secret, handlers }) {
@@ -12,7 +13,7 @@ export function startServer({ port, secret, handlers }) {
     const reply = (status, body) => { res.writeHead(status, { 'content-type': 'application/json' }); res.end(JSON.stringify(body)) }
     if (req.headers['x-agent-secret'] !== secret) return reply(401, { error: 'secreto' })
     const name = ROUTES[`${req.method} ${new URL(req.url, 'http://x').pathname}`]
-    if (!name) return reply(404, { error: 'no existe' })
+    if (!name || !handlers[name]) return reply(404, { error: 'no existe' })
     let body = {}
     if (req.method === 'POST') {
       try {

@@ -7,9 +7,11 @@ export function alertKind(a) {
   return 'done'
 }
 
+const NEEDS_HINT = '\n\nResponde aquí: 1 = permitir · 2 = denegar (o el número de la opción).'
+
 export class Vigilante {
-  constructor({ hub, config, send, own, setAwaiting, runDaily, onDaily, now = Date.now }) {
-    Object.assign(this, { hub, config, send, own, setAwaiting, runDaily, onDaily, now })
+  constructor({ hub, config, send, own, setAwaiting, runDaily, onDaily, now = Date.now, needsHint = NEEDS_HINT }) {
+    Object.assign(this, { hub, config, send, own, setAwaiting, runDaily, onDaily, now, needsHint })
     this.running = false
     this.since = now()
     this.online = new Map()
@@ -36,7 +38,7 @@ export class Vigilante {
           if (this.own().has(a.session)) continue
           const k = alertKind(a)
           if (!v[k]) continue
-          const extra = k === 'needs' ? '\n\nResponde aquí: 1 = permitir · 2 = denegar (o el número de la opción).' : ''
+          const extra = k === 'needs' ? this.needsHint : ''
           for (const n of to) await this.send(n, `${a.title}${a.body ? `\n${a.body}` : ''}${extra}`)
           if (k === 'needs') {
             const d = await this.hub.session(a.session).catch(() => null)

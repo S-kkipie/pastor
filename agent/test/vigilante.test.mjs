@@ -79,3 +79,13 @@ test('resumen diario: persiste el día local y no se repite tras reiniciar', asy
   await mk('2026-10-10', ran2, []).tick()
   assert.equal(ran2.length, 1)
 })
+
+test('el pie de "te necesita" se puede cambiar (con Hermes se contesta en palabras)', async () => {
+  const sent = []
+  const cfg = patchConfig(BASE, { vigilante: { needs: true } })
+  const alerts = [{ t: 10, session: 'pc~c', kind: 'permission', title: '🔐 C', body: 'Bash: ls' }]
+  const v = new Vigilante({ hub: hub(alerts), config: () => cfg, send: async (n, t) => sent.push(t), own: () => new Set(), setAwaiting() {}, runDaily() {}, now: () => 1000, needsHint: '\n\nDime qué hago.' })
+  v.since = 0
+  await v.tick()
+  assert.equal(sent[0], '🔐 C\nBash: ls\n\nDime qué hago.')
+})

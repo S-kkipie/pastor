@@ -23,6 +23,15 @@ export const GROUPS = ['sessions', 'routines', 'terminal', 'files', 'whatsapp']
 
 export const DEFAULTS = Object.freeze({
   enabled: true,
+  // 'claude': WhatsApp and the app's chat are the agent's own Claude Code sessions.
+  // 'hermes': both are Hermes Agent's (its gateway owns the WhatsApp number).
+  backend: 'claude',
+  hermes: {
+    url: 'http://127.0.0.1:8642',
+    bridge: 'http://127.0.0.1:3010',
+    home: path.join(os.homedir(), '.hermes'),
+    bin: path.join(os.homedir(), '.local', 'bin', 'hermes'),
+  },
   hub: 'http://127.0.0.1:7878',
   token: '',
   port: 7890,
