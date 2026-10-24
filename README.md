@@ -157,6 +157,26 @@ Después, en la app:
 1. Abre **Agente** y escanea el QR desde el WhatsApp del bot (Dispositivos vinculados).
 2. Añade los números que pueden escribirle.
 
+#### Con Hermes Agent en vez de Claude Code
+
+[Hermes Agent](https://github.com/NousResearch/hermes-agent) puede ser el agente: su gateway atiende el WhatsApp del bot y el chat de la app, y controla el hub con el MCP `pastor-hub`. pastor-agent queda para la pantalla de la app y el vigilante.
+
+1. Hermes en el hub, con su gateway como servicio (`hermes gateway install`) y WhatsApp vinculado al número del bot (`hermes whatsapp`). Un mismo número no puede estar vinculado a la vez en pastor-agent y en Hermes con las mismas credenciales.
+2. En `~/.hermes/.env`: `API_SERVER_KEY=<openssl rand -hex 32>` (activa su `api_server` en `127.0.0.1:8642`) y `WHATSAPP_ALLOWED_USERS=<tus números>`.
+3. En `~/.hermes/config.yaml`:
+   ```yaml
+   mcp_servers:
+     pastor-hub:
+       command: /usr/bin/node
+       args: [/home/<tú>/pastor/agent/mcp/pastor-hub.mjs]
+       env: { PASTOR_AGENT_HOME: /home/<tú>/pastor-agent, PASTOR_AGENT_CHANNEL: hermes }
+       tools: { exclude: [whatsapp_send, whatsapp_send_me] }   # Hermes ya escribe por WhatsApp
+   ```
+4. Las instrucciones de pastor para Hermes: `cp ~/pastor/agent/templates/HERMES.md ~/.hermes.md` (el gateway trabaja en `$HOME`).
+5. En `~/pastor-agent/config.json`: `"backend": "hermes"`, y `systemctl --user restart pastor-agent`.
+
+En la app, **Agente** pasa a llamarse **Hermes**: el chat "App" habla con Hermes y sus chats de WhatsApp se leen ahí mismo. Activo hace `hermes pause` / `hermes resume`; el vigilante escribe con `hermes send`. Los números y el vínculo de WhatsApp se cambian en Hermes.
+
 ### 4. La APK (opcional)
 
 ```sh
