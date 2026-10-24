@@ -207,7 +207,7 @@ export type PeerMessage = {
 }
 export type NetworkMessage = PeerMessage & { session: string; sessionTitle: string; machine: string }
 export type AgentChannel = { id: string; label: string; sessionId: string | null; online: boolean; busy: boolean; lastText: string; lastAt: number | null }
-export type AgentStatus = { enabled: boolean; whatsapp: { state: 'connecting' | 'connected' | 'disconnected' | 'logged_out'; me: string | null; since: number | null; qr: boolean }; channels: AgentChannel[] }
+export type AgentStatus = { backend?: 'claude' | 'hermes'; enabled: boolean; whatsapp: { state: 'connecting' | 'connected' | 'disconnected' | 'logged_out'; me: string | null; since: number | null; qr: boolean }; channels: AgentChannel[] }
 export type AgentGroup = 'sessions' | 'routines' | 'terminal' | 'files' | 'whatsapp'
 export type AgentConfig = {
   enabled: boolean; allowed: string[]; sleepMinutes: number; showInPanel: boolean
@@ -215,3 +215,7 @@ export type AgentConfig = {
   vigilante: { needs: boolean; done: boolean; failures: boolean; routines: boolean; daily: boolean; dailyTime: string; tz: number; to: string[] }
 }
 export type AgentActivity = { at: number; kind: string; text: string }
+// The app's chat with Hermes (pastor-agent with backend 'hermes'): its history and the turn in flight.
+export type HermesMessage = { id: number; role: 'user' | 'assistant' | 'tools'; text?: string; tools?: string[]; at: number }
+export type HermesLive = { user: string; text: string; tools: { tool: string; done: boolean; error: boolean }[]; status: 'running' | 'done' | 'failed' | 'stopped'; error?: string; startedAt: number }
+export type HermesChatState = { messages: HermesMessage[]; live: HermesLive | null; queued: number; readOnly: boolean }

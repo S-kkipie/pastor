@@ -9,6 +9,7 @@ import { ago } from '@/lib/format'
 import type { AgentActivity, AgentChannel, AgentConfig, AgentGroup, AgentStatus } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
+import { HermesChat } from './hermeschat'
 import { PetLane } from './pet/PetLane'
 import type { Walker } from './pet/walker'
 
@@ -45,11 +46,15 @@ export function AgentScreen({ open, onClose, onOpenSession }: { open: boolean; o
   const [settings, setSettings] = useState(false)
   const [activity, setActivity] = useState<AgentActivity[]>([])
   const [opening, setOpening] = useState<string | null>(null)
+  const [chat, setChat] = useState<AgentChannel | null>(null)
+  const hermes = status?.backend === 'hermes'
 
   useEffect(() => { if (open && tab === 'activity') api<AgentActivity[]>('/api/agent?part=activity').then(setActivity, () => {}) }, [open, tab])
 
-  const openChannel = async (id: string, sessionId: string | null) => {
+  const openChannel = async ({ id, sessionId }: AgentChannel) => {
     if (sessionId) { onClose(); onOpenSession(sessionId); return }
+    // Hermes's chats are not sessions of the hub: they open in their own view.
+    if (hermes) { setChat(status.channels.find(c => c.id === id) ?? null); return }
     setOpening(id)
     try { const r = await api<{ sessionId: string }>('/api/agent', { op: 'channel', channel: id }); onClose(); onOpenSession(r.sessionId) }
     catch (e) { toast.error((e as Error).message) }
@@ -70,7 +75,7 @@ export function AgentScreen({ open, onClose, onOpenSession }: { open: boolean; o
             <button type="button" onClick={onClose} aria-label="Cerrar" className="grid size-10 place-items-center rounded-full active:bg-white/5"><XIcon className="size-5" /></button>
             <span className="grid size-8 place-items-center rounded-xl bg-violet-500/15 text-violet-300"><SparklesIcon className="size-4" /></span>
             <div className="min-w-0 flex-1">
-              <p className="text-[15px] font-semibold leading-tight">Agente</p>
+              <p className="text-[15px] font-semibold leading-tight">{hermes ? 'Hermes' : 'Agente'}</p>
               <p className="flex items-center gap-1.5 truncate text-[11.5px] text-muted-foreground">
                 {wa && <span className={cn('size-1.5 rounded-full', wa[1])} />}
                 {missing ? 'No está instalado en este hub' : !status ? 'Cargando…' : `${status.enabled ? 'Activo' : 'Apagado'} · WhatsApp ${wa?.[0].toLowerCase()}`}
@@ -95,7 +100,7 @@ export function AgentScreen({ open, onClose, onOpenSession }: { open: boolean; o
               </button>
             )}
             {tab === 'chats' && status?.channels.map(c => (
-              <ChannelCard key={c.id} c={c} opening={opening === c.id} onOpen={() => void openChannel(c.id, c.sessionId)} />
+              <ChannelCard key={c.id} c={c} opening={opening === c.id} onOpen={() => void openChannel(c)} />
             ))}
             {tab === 'activity' && (activity.length ? (
               <div className="overflow-hidden rounded-2xl glass">
@@ -109,6 +114,7 @@ export function AgentScreen({ open, onClose, onOpenSession }: { open: boolean; o
             ) : <p className="mt-10 text-center text-[13px] text-muted-foreground">Todavía no hizo nada por su cuenta.</p>)}
           </main>
           <AnimatePresence>{settings && config && status && <AgentSettings config={config} status={status} onSave={save} onClose={() => setSettings(false)} />}</AnimatePresence>
+          <AnimatePresence>{chat && <HermesChat channel={chat.id} label={chat.label} onClose={() => { setChat(null); void refresh() }} />}</AnimatePresence>
         </motion.div>
       )}
     </AnimatePresence>
@@ -171,21 +177,22 @@ function AgentSettings({ config, status, onSave, onClose }: { config: AgentConfi
   const row = 'flex items-center gap-3 border-t border-white/5 px-3.5 py-3 first:border-0'
   const head = 'px-1 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground'
   const v = config.vigilante
+  const hermes = status.backend === 'hermes'
 
   return (
     <motion.div key="agent-settings" initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={spring}
       className="fixed inset-0 z-[55] flex flex-col bg-background pt-[env(safe-area-inset-top)]">
       <header className="flex items-center gap-2 border-b border-white/6 px-2 py-2">
         <button type="button" onClick={onClose} aria-label="Volver" className="grid size-10 place-items-center rounded-full active:bg-white/5"><ChevronLeftIcon className="size-5" /></button>
-        <p className="flex-1 text-[15px] font-semibold">Ajustes del agente</p>
+        <p className="flex-1 text-[15px] font-semibold">{hermes ? 'Ajustes de Hermes' : 'Ajustes del agente'}</p>
       </header>
       <main className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4 pb-[max(env(safe-area-inset-bottom),24px)] pt-4 [&>*]:shrink-0">
         <div className={card}>
-          <div className={row}><span className="min-w-0 flex-1"><span className="block text-[15px] font-semibold">Activo</span><span className="block text-[11.5px] text-muted-foreground">Escucha WhatsApp y la app</span></span>
+          <div className={row}><span className="min-w-0 flex-1"><span className="block text-[15px] font-semibold">Activo</span><span className="block text-[11.5px] text-muted-foreground">{hermes ? 'Hermes responde WhatsApp y la app (hermes pause / resume)' : 'Escucha WhatsApp y la app'}</span></span>
             <Switch on={config.enabled} label="Activo" onChange={on => void onSave({ enabled: on })} /></div>
         </div>
 
-        <section><p className={head}>Permisos</p><div className={card}>
+        {!hermes && <section><p className={head}>Permisos</p><div className={card}>
           <div className={row}><ShieldCheckIcon className="size-4 shrink-0 text-violet-300" /><span className="min-w-0 flex-1"><span className="block text-[14px]">Permiso total</span><span className="block text-[11.5px] text-muted-foreground">Hace todo sin preguntar</span></span>
             <Switch on={config.permissions.total} label="Permiso total" onChange={on => { setCustom(!on); void onSave({ permissions: { total: on } }) }} /></div>
           {custom && GROUPS.map(([g, label]) => (
@@ -197,7 +204,7 @@ function AgentSettings({ config, status, onSave, onClose }: { config: AgentConfi
                 ))}
               </div></div>
           ))}
-        </div></section>
+        </div></section>}
 
         <section><p className={head}>Vigilante · te escribe solo</p><div className={cn(card, 'p-3.5')}>
           <div className="flex flex-wrap gap-1.5">
@@ -221,6 +228,11 @@ function AgentSettings({ config, status, onSave, onClose }: { config: AgentConfi
             <span className="block text-[11.5px] text-muted-foreground">{WA[status.whatsapp.state][0]}{status.whatsapp.since ? ` · desde ${ago(status.whatsapp.since)}` : ''}</span></span></div>
           {qr && <div className="grid place-items-center border-t border-white/5 bg-white p-4"><img src={qr} alt="QR para vincular WhatsApp" className="size-56" /></div>}
           {qr && <p className="border-t border-white/5 px-3.5 py-2.5 text-[11.5px] text-muted-foreground">En el teléfono del bot: WhatsApp → Dispositivos vinculados → Vincular un dispositivo.</p>}
+          {hermes ? (
+            <div className={row}><span className="min-w-0 flex-1"><span className="block text-[13.5px]">Pueden escribirle (solo DMs)</span>
+              <span className="mt-1 block font-mono text-[12.5px]">{config.allowed.join(', ') || '—'}</span>
+              <span className="mt-1 block text-[11.5px] text-muted-foreground">Los define Hermes: WHATSAPP_ALLOWED_USERS en ~/.hermes/.env. Para volver a vincular: hermes whatsapp.</span></span></div>
+          ) : <>
           <div className={row}><span className="min-w-0 flex-1"><span className="block text-[13.5px]">Pueden escribirle (solo DMs)</span>
             <input value={numbers} onChange={e => setNumbers(e.target.value)} onBlur={() => void onSave({ allowed: numbers.split(/[,\s]+/).filter(Boolean) })}
               className="mt-1 w-full bg-transparent font-mono text-[16px] outline-none sm:text-[12.5px]" /></span></div>
@@ -234,16 +246,17 @@ function AgentSettings({ config, status, onSave, onClose }: { config: AgentConfi
             <button type="button" onClick={() => setConfirmRelink(true)} className={cn(row, 'w-full text-left text-[13.5px] text-amber-200')}>
               <QrCodeIcon className="size-4" />Volver a vincular</button>
           )}
+          </>}
         </div></section>
 
-        <section><p className={head}>Sesiones</p><div className={card}>
+        {!hermes && <section><p className={head}>Sesiones</p><div className={card}>
           <div className={row}><span className="min-w-0 flex-1 text-[13.5px]">Dormir tras inactividad</span>
             <select defaultValue={config.sleepMinutes} onChange={e => void onSave({ sleepMinutes: Number(e.target.value) })} className="rounded-xl bg-white/[0.06] px-2 py-1 font-mono text-[13px]">
               {[10, 30, 60, 180].map(m => <option key={m} value={m}>{m} min</option>)}
             </select></div>
           <div className={row}><span className="min-w-0 flex-1 text-[13.5px]">Mostrar sus sesiones en mi panel</span>
             <Switch on={config.showInPanel} label="Mostrar en el panel" onChange={on => void onSave({ showInPanel: on })} /></div>
-        </div></section>
+        </div></section>}
       </main>
     </motion.div>
   )

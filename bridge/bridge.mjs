@@ -2137,13 +2137,13 @@ async function handleApi(req, res, url, p) {
   }
   if (p === '/api/agent') {
     // The general agent (pastor-agent) runs next to this hub; the phone reaches
-    // its settings, status and QR through here.
+    // its settings, status and QR through here, and with Hermes its chat (chat/say/stop).
     let ac = null
     try { ac = JSON.parse(fs.readFileSync(path.join(process.env.PASTOR_AGENT_HOME || path.join(os.homedir(), 'pastor-agent'), 'config.json'), 'utf8')) } catch { /* not installed */ }
     if (!ac?.localSecret) return send(res, 404, { error: 'El agente no está instalado en este hub' })
     const b = req.method === 'POST' ? await readBody(req) : null
     const part = b ? String(b.op ?? '') : String(url.searchParams.get('part') ?? 'status')
-    if (!(b ? ['config', 'channel', 'relink'] : ['status', 'config', 'activity', 'qr']).includes(part)) return send(res, 400, { error: 'part' })
+    if (!(b ? ['config', 'channel', 'relink', 'chat', 'say', 'stop'] : ['status', 'config', 'activity', 'qr']).includes(part)) return send(res, 400, { error: 'part' })
     try {
       const r = await fetch(`http://127.0.0.1:${ac.port || 7890}/${part}`, {
         method: b ? 'POST' : 'GET', headers: { 'x-agent-secret': ac.localSecret, 'content-type': 'application/json' },

@@ -333,7 +333,7 @@ export function SessionsScreen({ onOpen }: { onOpen: (id: string) => void }) {
         ] as const).filter(([key]) => key !== 'agent' || !agent.missing).map(([key, label, Icon, color]) => (
           <motion.button key={key} type="button" whileTap={{ scale: 0.96 }} onClick={() => setTool(key)}
             className="flex h-10 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-2xl text-[13px] font-medium glass active:bg-white/5">
-            <Icon className={cn('size-4 shrink-0', color)} /><span className="truncate">{label}</span>
+            <Icon className={cn('size-4 shrink-0', color)} /><span className="truncate">{key === 'agent' && agent.status?.backend === 'hermes' ? 'Hermes' : label}</span>
             {key === 'agent' && agent.status && <span className={cn('size-1.5 rounded-full', agent.status.whatsapp.state === 'connected' ? 'bg-emerald-400' : 'bg-amber-400')} />}
           </motion.button>
         ))}
