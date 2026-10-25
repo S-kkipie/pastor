@@ -15,6 +15,7 @@ import { spawn, execFile } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { StringDecoder } from 'node:string_decoder'
 import { parseAddress, addressOf, resolveRef, networkRows, formatNetwork, RateLimit, checkText } from './peers.mjs'
+import { signHeaders, pickDoneWebhooks, monitoredPeers } from './monitors.mjs'
 
 const VERSION = 46
 const HERE = path.dirname(fileURLToPath(import.meta.url))
@@ -41,6 +42,9 @@ function loadConf() {
   fill('ntfyTopic', '')
   fill('publicUrl', '')
   fill('awayDefault', false)
+  // Sessions Hermes asked to watch, and where to tell it. See monitors.mjs.
+  fill('monitors', {})
+  fill('hermesHook', null)
   if (dirty) saveConf(conf)
   return conf
 }
@@ -99,7 +103,7 @@ if (cmd === 'stop') {
   await local(loadConf(), '/mod/shutdown', 'POST')
   process.exit(0)
 }
-if (['code', 'link', 'unlink', 'peers', 'status'].includes(cmd)) {
+if (['code', 'link', 'unlink', 'peers', 'status', 'monitors', 'hermes-hook'].includes(cmd)) {
   // Talk to the running bridge the way the mod does, from a shell.
   const conf = loadConf()
   if (!(await health(conf))) { console.error('el bridge no está corriendo (node bridge.mjs serve, o el servicio)'); process.exit(1) }
@@ -118,6 +122,17 @@ if (['code', 'link', 'unlink', 'peers', 'status'].includes(cmd)) {
     console.log(r.ok ? `enlazada: ${r.name}` : `error: ${r.error}`)
   }
   if (cmd === 'unlink') { const r = await post('/mod/unlink', { name: String(a ?? '').toLowerCase() }); console.log(r.ok ? 'desenlazada' : 'no existe') }
+  if (cmd === 'hermes-hook') {
+    if (a === '--clear') { await post('/mod/monitors-hook', { clear: true }); console.log('webhook de Hermes borrado') }
+    else if (!a) { console.error('uso: bridge.mjs hermes-hook <url> [secret]   (o --clear)') }
+    else { const r = await post('/mod/monitors-hook', { url: a, secret: b }); console.log(r.ok ? `apuntado a ${r.hook.url}${r.hook.hasSecret ? ' (firmado)' : ' (SIN firma)'}` : `error: ${r.error}`) }
+  }
+  if (cmd === 'monitors') {
+    const r = await post('/mod/monitors')
+    console.log(r.hook ? `webhook: ${r.hook.url}${r.hook.hasSecret ? ' (firmado)' : ' (SIN firma)'}` : 'webhook de Hermes: sin configurar (bridge.mjs hermes-hook <url> <secret>)')
+    if (!r.monitors.length) console.log('sin sesiones monitoreadas')
+    for (const m of r.monitors) console.log(`  • ${m.id}${m.note ? ` — ${m.note}` : ''}`)
+  }
   if (cmd === 'peers' || cmd === 'status') {
     const r = await post('/mod/peers')
     console.log(`hub ${r.machine} · puerto ${conf.port} · ${Object.keys(loadConf().devices).length} dispositivo(s) · código ${loadConf().pairCode}`)
@@ -127,7 +142,7 @@ if (['code', 'link', 'unlink', 'peers', 'status'].includes(cmd)) {
   }
   process.exit(0)
 }
-if (cmd !== 'serve') { console.error('usage: bridge.mjs ensure|serve|stop|status|code|link <url> <código>|unlink <pc>|peers'); process.exit(2) }
+if (cmd !== 'serve') { console.error('usage: bridge.mjs ensure|serve|stop|status|code|link <url> <código>|unlink <pc>|peers|monitors|hermes-hook <url> [secret]'); process.exit(2) }
 
 // ---- server ------------------------------------------------------------
 const conf = loadConf()
@@ -273,6 +288,42 @@ async function notify(title, body) {
       headers: { Title: encodeURIComponent(title), ...(conf.publicUrl ? { Click: conf.publicUrl } : {}) },
     })
   } catch {}
+}
+
+// ---- monitores: tell Hermes when a monitored session ends a turn -----------
+// Runs only on the hub (it is the one with a hermesHook and peers). Zero cost on
+// the session side: this reuses the "turn ended" alerts the hub already raises,
+// picks the monitored ones, and POSTs a signed webhook to Hermes. A session not
+// in conf.monitors is never touched.
+const MON_LOOKBACK = 90_000
+const MON_FIRED_TTL = 15 * 60_000
+const monFired = new Map() // alert id -> t, so each turn-end fires once
+const monBootAt = Date.now()
+async function fireMonitors() {
+  const hook = conf.hermesHook
+  const ids = Object.keys(conf.monitors ?? {})
+  if (!hook?.url || !ids.length) return
+  const monitors = new Set(ids)
+  const since = Date.now() - MON_LOOKBACK
+  // Hub-local alerts carry a bare session id; peers' get the "<peer>~" prefix,
+  // the same id Hermes sees in sessions_list, so conf.monitors keys match.
+  const cand = localAlerts(since)
+  for (const name of monitoredPeers(monitors, Object.keys(conf.peers))) {
+    try {
+      const r = await peerFetch(name, `api/alerts?since=${since}`)
+      if (r.status === 200) for (const a of r.body.alerts ?? []) cand.push({ ...a, session: `${name}~${a.session}`, machine: name })
+    } catch { /* peer offline: try again next tick */ }
+  }
+  for (const { alert, body } of pickDoneWebhooks(cand, { monitors, firedIds: new Set(monFired.keys()), minT: monBootAt })) {
+    monFired.set(alert.id, alert.t)
+    const payload = JSON.stringify(body)
+    try {
+      const r = await fetch(hook.url, { method: 'POST', headers: signHeaders(hook.secret, payload), body: payload, signal: AbortSignal.timeout(8000) })
+      if (!r.ok) console.error(`[monitores] Hermes respondió ${r.status} para ${body.session}`)
+    } catch (e) { console.error(`[monitores] no pude avisar a Hermes: ${e.message}`) }
+  }
+  const cut = Date.now() - MON_FIRED_TTL
+  for (const [id, t] of monFired) if (t < cut) monFired.delete(id)
 }
 
 function send(res, status, body, type = 'application/json') {
@@ -1219,7 +1270,22 @@ async function handleMod(req, res, url, p) {
       return send(res, 200, { text: formatNetwork(networkRows(list, { self, selfMachine: MACHINE })) })
     } catch { return send(res, 200, { text: formatNetwork({ error: 'el hub no responde' }) }) }
   }
+  // Monitores, read side (for `bridge.mjs monitors` on the hub).
+  if (p === '/mod/monitors' && req.method !== 'POST') {
+    return send(res, 200, {
+      monitors: Object.entries(conf.monitors ?? {}).map(([id, m]) => ({ id, ...m })),
+      hook: conf.hermesHook ? { url: conf.hermesHook.url, hasSecret: conf.hermesHook.secret !== 'INSECURE_NO_AUTH' } : null,
+    })
+  }
   const b = await readBody(req)
+  // Point the hub at Hermes's webhook route (set once, from `bridge.mjs hermes-hook`).
+  if (p === '/mod/monitors-hook') {
+    if (b.clear) { conf.hermesHook = null; saveConf(conf); return send(res, 200, { ok: true, hook: null }) }
+    if (!b.url) return send(res, 400, { error: 'falta url' })
+    conf.hermesHook = { url: String(b.url), secret: String(b.secret || 'INSECURE_NO_AUTH') }
+    saveConf(conf)
+    return send(res, 200, { ok: true, hook: { url: conf.hermesHook.url, hasSecret: conf.hermesHook.secret !== 'INSECURE_NO_AUTH' } })
+  }
   if (p === '/mod/peer-send') {
     const s = sessions.get(String(b.session ?? ''))
     if (!s) return send(res, 200, { ok: false, reason: 'esta sesión no está registrada en pastor' })
@@ -2323,6 +2389,30 @@ async function handleApi(req, res, url, p) {
     return send(res, 200, { machine: MACHINE, awayDefault: !!conf.awayDefault })
   }
 
+  // ---- monitores: Hermes adds/removes which sessions it watches -------------
+  // Hub-wide state (one Hermes), so it is never forwarded to a peer.
+  if (p === '/api/monitors') {
+    if (isHop) return send(res, 404, { error: 'no en una PC' })
+    conf.monitors ??= {}
+    if (req.method === 'POST') {
+      const b = await readBody(req)
+      const id = String(b.id ?? '').trim()
+      if (b.op === 'add') {
+        if (!id) return send(res, 400, { error: 'falta id' })
+        conf.monitors[id] = { note: String(b.note ?? '').slice(0, 200), addedAt: Date.now() }
+        saveConf(conf)
+      } else if (b.op === 'remove') {
+        const had = id in conf.monitors
+        delete conf.monitors[id]; saveConf(conf)
+        if (!had) return send(res, 404, { error: 'esa sesión no estaba monitoreada' })
+      } else return send(res, 400, { error: 'op debe ser add o remove' })
+    }
+    return send(res, 200, {
+      monitors: Object.entries(conf.monitors).map(([id, m]) => ({ id, ...m })),
+      hook: conf.hermesHook ? { url: conf.hermesHook.url } : null,
+    })
+  }
+
   if (p === '/api/launch' && req.method === 'POST') {
     const b = await readBody(req)
     if (b.machine && b.machine !== MACHINE) {
@@ -2513,3 +2603,4 @@ setTimeout(() => void pushUplinks(), 5000)
 setInterval(() => void pushUplinks(), 6 * 3600_000)
 setInterval(refreshTitles, 30_000)
 setInterval(() => { for (const s of sessions.values()) checkDone(s) }, 5_000)
+setInterval(() => void fireMonitors(), 4_000)
