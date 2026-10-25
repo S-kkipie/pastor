@@ -28,6 +28,9 @@ export const TOOLS = [
   { name: 'previews_list', description: 'Servidores web de desarrollo corriendo en una PC.', inputSchema: S({ machine: MACHINE }) },
   { name: 'whatsapp_send_me', description: 'Mandarle a tu dueño un mensaje o archivo por WhatsApp (a este canal, o al primer número si es la app).', inputSchema: S({ text: str('texto'), file: str('ruta de un archivo en el VPS') }) },
   { name: 'whatsapp_send', description: 'Escribir por WhatsApp a cualquier número desde el número del bot.', inputSchema: S({ to: str('número con código de país'), text: str('texto'), file: str('ruta de un archivo en el VPS') }, ['to']) },
+  { name: 'monitor_add', description: 'Vigilar una sesión: cuando termine su turno recibes un aviso. Es opt-in, solo las sesiones que agregues; el resto no avisa por aquí (de eso ya se encarga la app con sus notificaciones).', inputSchema: S({ id: str('id de sesión tal como lo da sessions_list'), note: str('para qué la vigilas (opcional)') }, ['id']) },
+  { name: 'monitor_remove', description: 'Dejar de vigilar una sesión.', inputSchema: S({ id: str('id de sesión') }, ['id']) },
+  { name: 'monitors_list', description: 'Sesiones que estás vigilando para avisos de fin de turno.', inputSchema: S({}) },
 ]
 
 const text = t => [{ type: 'text', text: String(t) }]
@@ -143,6 +146,23 @@ export function makeHandlers({ hub, local, channel, owner }) {
       if (n.length < 10) throw new Error('Número inválido')
       await local.send({ to: n, ...(t ? { text: t } : {}), ...(file ? { file } : {}) })
       return text(`Enviado a ${n}.`)
+    },
+    async monitor_add({ id, note }) {
+      const r = await hub.post('/api/monitors', { op: 'add', id: need(id, 'id'), note })
+      await act('monitor', `Vigila ${id}`)
+      const warn = r.hook ? '' : '\n\n⚠ El webhook de Hermes aún no está configurado en el hub, así que el aviso no saldrá hasta hacerlo (ver README: «Monitores»).'
+      return text(`Vigilando ${id}. Te aviso cuando termine un turno.${warn}`)
+    },
+    async monitor_remove({ id }) {
+      await hub.post('/api/monitors', { op: 'remove', id: need(id, 'id') })
+      await act('monitor', `Ya no vigila ${id}`)
+      return text(`Dejé de vigilar ${id}.`)
+    },
+    async monitors_list() {
+      const r = await hub.get('/api/monitors')
+      const list = r.monitors ?? []
+      const warn = r.hook ? '' : '\n\n⚠ Webhook de Hermes sin configurar en el hub (ver README: «Monitores»).'
+      return text((list.length ? list.map(m => `• ${m.id}${m.note ? ` — ${m.note}` : ''}`).join('\n') : 'No vigilas ninguna sesión.') + warn)
     },
   }
 }

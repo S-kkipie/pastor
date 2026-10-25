@@ -30,7 +30,7 @@ test('lista de herramientas completa', () => {
   const names = TOOLS.map(t => t.name)
   for (const n of ['hub_overview', 'projects_list', 'sessions_list', 'session_read', 'session_prompt', 'session_launch', 'session_decide', 'session_stop', 'session_close',
     'routines_list', 'routine_save', 'routine_run', 'routine_toggle', 'routine_delete', 'git_status', 'files_read', 'terminal_run', 'browser_look', 'previews_list',
-    'whatsapp_send_me', 'whatsapp_send']) assert.ok(names.includes(n), n)
+    'whatsapp_send_me', 'whatsapp_send', 'monitor_add', 'monitor_remove', 'monitors_list']) assert.ok(names.includes(n), n)
   for (const t of TOOLS) assert.equal(t.inputSchema.type, 'object')
 })
 test('hub_overview resume y oculta las sesiones del agente', async () => {
@@ -54,6 +54,27 @@ test('whatsapp_send_me va al número del canal; whatsapp_send a cualquiera', asy
   await H().whatsapp_send_me({ text: 'hola' })
   await H().whatsapp_send({ to: '+51 999 888 777', text: 'buenas' })
   assert.deepEqual(local.sent, [{ to: '51900000002', text: 'hola' }, { to: '51999888777', text: 'buenas' }])
+})
+test('monitor_add/remove llaman al hub /api/monitors', async () => {
+  const h = fakeHub(), hs = makeHandlers({ hub: h, local, channel: 'app', owner: ['51900000001'] })
+  const [a] = await hs.monitor_add({ id: 'pc~b', note: 'el build' })
+  assert.deepEqual(h.calls[0], ['post', '/api/monitors', { op: 'add', id: 'pc~b', note: 'el build' }])
+  assert.match(a.text, /Vigilando pc~b/)
+  // El hub de prueba no devuelve hook: avisa que falta configurarlo.
+  assert.match(a.text, /webhook de Hermes aún no está configurado/i)
+  const [r] = await hs.monitor_remove({ id: 'pc~b' })
+  assert.deepEqual(h.calls[1], ['post', '/api/monitors', { op: 'remove', id: 'pc~b' }])
+  assert.match(r.text, /Dejé de vigilar pc~b/)
+})
+test('monitor_add sin id falla', async () => {
+  await assert.rejects(() => H().monitor_add({}), /Falta id/)
+})
+test('monitors_list muestra lo vigilado y avisa si hay hook', async () => {
+  const h = fakeHub()
+  h.get = async p => { assert.equal(p, '/api/monitors'); return { monitors: [{ id: 'pc~b', note: 'el build' }], hook: { url: 'http://127.0.0.1:8644/webhooks/pastor-session' } } }
+  const [c] = await makeHandlers({ hub: h, local, channel: 'app', owner: [] }).monitors_list({})
+  assert.match(c.text, /pc~b — el build/)
+  assert.doesNotMatch(c.text, /sin configurar/i)
 })
 test('browser_look devuelve una imagen', async () => {
   const h = fakeHub()
