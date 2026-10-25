@@ -16,6 +16,10 @@ export const shortPath = (p?: string): string => {
 
 export const fileName = (p?: string): string => String(p ?? '').split(/[\\/]/).filter(Boolean).pop() ?? ''
 
+// The short id for a session (the conversation uuid's head, machine prefix dropped):
+// it tells apart two sessions that happen to share a title (same folder, say).
+export const shortId = (id: string): string => (id.split('~').pop() ?? id).slice(0, 8)
+
 export const tokens = (n?: number | null): string =>
   n == null ? '–' : n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M` : n >= 1000 ? `${Math.round(n / 1000)}k` : String(n)
 

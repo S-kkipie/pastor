@@ -21,7 +21,7 @@ import { TerminalScreen } from '@/components/pastor/terminal'
 import { NetworkButton, NetworkSheet } from '@/components/pastor/network'
 import type { OrbState } from '@/components/pastor/orb'
 import { api, sessionPath, store } from '@/lib/api'
-import { ago, shortPath } from '@/lib/format'
+import { ago, shortId, shortPath } from '@/lib/format'
 import { stripMd } from '@/lib/plan'
 import { useNetwork, useSessions } from '@/lib/hooks'
 import { useLongPress, useOrder, usePins } from '@/lib/pins'
@@ -51,8 +51,8 @@ function useSessionPins() {
   return { has, flip }
 }
 
-function SessionCard({ s, onOpen, i, showMachine, pinned, onPin }: {
-  s: SessionSummary; onOpen: () => void; i: number; showMachine?: boolean; pinned?: boolean; onPin?: () => void
+function SessionCard({ s, onOpen, i, showMachine, pinned, onPin, dup }: {
+  s: SessionSummary; onOpen: () => void; i: number; showMachine?: boolean; pinned?: boolean; onPin?: () => void; dup?: boolean
 }) {
   const live = liveOf(s)
   const look = LIVE[live]
@@ -75,6 +75,7 @@ function SessionCard({ s, onOpen, i, showMachine, pinned, onPin }: {
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <span className="truncate text-[16px] font-semibold">{s.title}</span>
+            {dup && <span className="shrink-0 font-mono text-[10.5px] text-muted-foreground/60">#{shortId(s.id)}</span>}
             {pinned && <PinIcon className="size-3.5 shrink-0 text-coral" />}
             {s.away && <SmartphoneIcon className="size-3.5 shrink-0 text-coral" />}
             {!!s.messages && <span className="flex shrink-0 items-center gap-1 rounded-full bg-violet-500/10 px-1.5 font-mono text-[10.5px] text-violet-200/90"><RadioTowerIcon className="size-3" />{s.messages}</span>}
@@ -116,8 +117,8 @@ function SessionCard({ s, onOpen, i, showMachine, pinned, onPin }: {
 // Live sessions in the order the person set by dragging the grip; activity
 // never moves a card, only its rail and state chip change.
 type Order = ReturnType<typeof useOrder>
-function LiveList({ list, order, showMachine, pins, onOpen }: {
-  list: SessionSummary[]; order: Order; showMachine?: boolean; pins: ReturnType<typeof useSessionPins>; onOpen: (id: string) => void
+function LiveList({ list, order, showMachine, pins, onOpen, dups }: {
+  list: SessionSummary[]; order: Order; showMachine?: boolean; pins: ReturnType<typeof useSessionPins>; onOpen: (id: string) => void; dups: Set<string>
 }) {
   const sorted = order.sort(list, s => s.id)
   if (!sorted.length) return null
@@ -126,7 +127,7 @@ function LiveList({ list, order, showMachine, pins, onOpen }: {
       <AnimatePresence initial={false}>
         {sorted.map((s, i) => (
           <LiveItem key={s.id} id={s.id}>
-            <SessionCard s={s} i={i} showMachine={showMachine} pinned={pins.has(s.id)} onPin={() => pins.flip(s)} onOpen={() => onOpen(s.id)} />
+            <SessionCard s={s} i={i} showMachine={showMachine} pinned={pins.has(s.id)} onPin={() => pins.flip(s)} onOpen={() => onOpen(s.id)} dup={dups.has(s.id)} />
           </LiveItem>
         ))}
       </AnimatePresence>
@@ -150,8 +151,8 @@ function LiveItem({ id, children }: { id: string; children: ReactNode }) {
 }
 
 // Closed sessions: one compact row each, removable.
-function ClosedList({ list, onOpen, showMachine, limit = 8, pins }: {
-  list: SessionSummary[]; onOpen: (id: string) => void; showMachine?: boolean; limit?: number; pins: ReturnType<typeof useSessionPins>
+function ClosedList({ list, onOpen, showMachine, limit = 8, pins, dups }: {
+  list: SessionSummary[]; onOpen: (id: string) => void; showMachine?: boolean; limit?: number; pins: ReturnType<typeof useSessionPins>; dups: Set<string>
 }) {
   const [gone, setGone] = useState<Set<string>>(new Set())
   const rows = list.filter(s => !gone.has(s.id)).slice(0, limit)
@@ -164,7 +165,7 @@ function ClosedList({ list, onOpen, showMachine, limit = 8, pins }: {
     <div className="overflow-hidden rounded-2xl glass">
       <AnimatePresence initial={false}>
         {rows.map(s => (
-          <ClosedRow key={s.id} s={s} showMachine={showMachine} pinned={pins.has(s.id)}
+          <ClosedRow key={s.id} s={s} showMachine={showMachine} pinned={pins.has(s.id)} dup={dups.has(s.id)}
             onOpen={() => onOpen(s.id)} onPin={() => pins.flip(s)} onForget={() => void forget(s.id)} />
         ))}
       </AnimatePresence>
@@ -172,8 +173,8 @@ function ClosedList({ list, onOpen, showMachine, limit = 8, pins }: {
   )
 }
 
-function ClosedRow({ s, showMachine, pinned, onOpen, onPin, onForget }: {
-  s: SessionSummary; showMachine?: boolean; pinned: boolean; onOpen: () => void; onPin: () => void; onForget: () => void
+function ClosedRow({ s, showMachine, pinned, onOpen, onPin, onForget, dup }: {
+  s: SessionSummary; showMachine?: boolean; pinned: boolean; onOpen: () => void; onPin: () => void; onForget: () => void; dup?: boolean
 }) {
   const press = useLongPress(onPin, onOpen)
   return (
@@ -181,7 +182,7 @@ function ClosedRow({ s, showMachine, pinned, onOpen, onPin, onForget }: {
       <button type="button" {...press} className="flex min-w-0 flex-1 select-none items-center gap-3 px-3.5 py-2.5 text-left active:bg-white/5 [-webkit-touch-callout:none]">
         {pinned ? <PinIcon className="size-3 shrink-0 text-coral" /> : <span className="size-1.5 shrink-0 rounded-full bg-white/20" />}
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-[13.5px]">{s.title}{showMachine && <span className="font-mono text-[11px] text-muted-foreground/60"> · {s.machine}</span>}</span>
+          <span className="block truncate text-[13.5px]">{s.title}{dup && <span className="font-mono text-[11px] text-muted-foreground/50"> #{shortId(s.id)}</span>}{showMachine && <span className="font-mono text-[11px] text-muted-foreground/60"> · {s.machine}</span>}</span>
           <span className="block truncate text-[11.5px] text-muted-foreground/70">{s.last ? stripMd(s.last.text) : shortPath(s.cwd)}</span>
         </span>
         <span className="shrink-0 font-mono text-[10.5px] text-muted-foreground/60">{ago(s.lastSeen)}</span>
@@ -262,6 +263,13 @@ export function SessionsScreen({ onOpen }: { onOpen: (id: string) => void }) {
   const background = liveNow.filter(s => liveOf(s) === 'background').length
   const online = liveNow.length
   const waiting = shown.reduce((a, s) => a + s.pending, 0)
+  // Sessions that share a title (same folder, or the same generated title) look
+  // like duplicates; mark them so each card shows a short id to tell them apart.
+  const dups = useMemo(() => {
+    const byTitle = new Map<string, number>()
+    for (const s of shown) byTitle.set(s.title, (byTitle.get(s.title) ?? 0) + 1)
+    return new Set(shown.filter(s => (byTitle.get(s.title) ?? 0) > 1).map(s => s.id))
+  }, [shown])
   const order = useOrder('sessions', shown.map(s => s.id))
   const projectKeys = useMemo(() => [...new Set(shown.map(s => `${s.machine}:${projectKey(s.cwd)}`))], [shown])
   const groupOrder = useOrder('projects', projectKeys)
@@ -368,8 +376,8 @@ export function SessionsScreen({ onOpen }: { onOpen: (id: string) => void }) {
                 <span className="ml-auto font-mono text-[11px] text-muted-foreground/70">{pinned.length}</span>
               </div>
               <div className="flex flex-col gap-2.5">
-                <LiveList list={pinnedLive} order={order} showMachine={multi} pins={pins} onOpen={onOpen} />
-                {pinnedClosed.length > 0 && <ClosedList list={pinnedClosed} onOpen={onOpen} showMachine={multi} limit={30} pins={pins} />}
+                <LiveList list={pinnedLive} order={order} showMachine={multi} pins={pins} onOpen={onOpen} dups={dups} />
+                {pinnedClosed.length > 0 && <ClosedList list={pinnedClosed} onOpen={onOpen} showMachine={multi} limit={30} pins={pins} dups={dups} />}
               </div>
             </motion.section>
           )}
@@ -390,7 +398,7 @@ export function SessionsScreen({ onOpen }: { onOpen: (id: string) => void }) {
                   </div>
                 )}
                 <div className="flex flex-col gap-2.5">
-                  <LiveList list={live} order={order} showMachine={showMachine && by !== 'project'} pins={pins} onOpen={onOpen} />
+                  <LiveList list={live} order={order} showMachine={showMachine && by !== 'project'} pins={pins} onOpen={onOpen} dups={dups} />
                   {closed.length > 0 && (
                     <div className={cn(live.length > 0 && 'mt-1')}>
                       {(by !== 'project' || live.length > 0) && (
@@ -398,7 +406,7 @@ export function SessionsScreen({ onOpen }: { onOpen: (id: string) => void }) {
                           {by === 'recent' ? 'Cerradas' : 'Recientes'}
                         </p>
                       )}
-                      <ClosedList list={closed} onOpen={onOpen} showMachine={showMachine} limit={by === 'recent' ? 30 : by === 'project' ? 4 : 8} pins={pins} />
+                      <ClosedList list={closed} onOpen={onOpen} showMachine={showMachine} limit={by === 'recent' ? 30 : by === 'project' ? 4 : 8} pins={pins} dups={dups} />
                     </div>
                   )}
                   {by === 'machine' && g.title && g.list.length === 0 && <p className="px-1 text-[12.5px] text-muted-foreground/60">Sin sesiones.</p>}
