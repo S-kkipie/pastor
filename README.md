@@ -177,6 +177,34 @@ Después, en la app:
 
 En la app, **Agente** pasa a llamarse **Hermes**: el chat "App" habla con Hermes y sus chats de WhatsApp se leen ahí mismo. Activo hace `hermes pause` / `hermes resume`; el vigilante escribe con `hermes send`. Los números y el vínculo de WhatsApp se cambian en Hermes.
 
+##### Monitores: avisar a Hermes cuando una sesión termina su turno
+
+pastor ya avisa al **móvil** cuando cualquier sesión termina (notificaciones). Un **monitor** es distinto y opt-in: le dice a **Hermes** que vigile *una* sesión concreta, para que reaccione cuando esa sesión termine un turno (leerla, seguirle el hilo, avisarte). Las sesiones que no agregues no generan ningún aviso por este canal.
+
+Cómo funciona, sin gasto de tokens del lado de la sesión:
+
+- El **hub** ya detecta el fin de turno real de cada sesión (Claude en reposo y sin subagentes trabajando), en todas las PCs. No hay un hook nuevo en cada sesión ni se toca Claude Code.
+- El hub guarda una lista de sesiones monitoreadas (`conf.monitors`) y, solo cuando hay alguna, mira esos fines de turno. Si la sesión está en la lista, hace un **POST firmado (HMAC) al webhook de Hermes**; si no está, no hace nada.
+- Hermes recibe el evento en una ruta webhook propia y actúa (o no). Es su mecanismo nativo de activación por eventos: firmado, con anti-replay e idempotencia.
+
+**Puesta en marcha (una vez, en el hub):**
+
+```sh
+bash ~/pastor/scripts/hermes-monitors-setup.sh
+```
+
+Crea la ruta `pastor-session` en Hermes (firmada) y apunta el hub a `http://127.0.0.1:8644/webhooks/pastor-session`. Si la plataforma webhook de Hermes no estaba activa, el script te dice el bloque que falta en `~/.hermes/config.yaml` (bajo `platforms:`) y que reinicies el gateway. Para comprobarlo o rehacerlo: `node ~/pastor/bridge/bridge.mjs monitors` (y `… hermes-hook <url> <secret>` para reapuntarlo).
+
+**Poner y quitar un monitor, desde Hermes** (tools del MCP `pastor-hub`, úsalas en lenguaje natural: «vigila la sesión X», «deja de vigilar X»):
+
+| Tool | Qué hace |
+| --- | --- |
+| `monitor_add { id, note? }` | Empieza a vigilar la sesión (el `id` es el de `sessions_list`). |
+| `monitor_remove { id }` | Deja de vigilarla. |
+| `monitors_list {}` | Las que vigila ahora. |
+
+El aviso que recibe Hermes trae `event_type: session.turn_end` y los campos `session`, `title`, `machine`, `summary`.
+
 ### 4. La APK (opcional)
 
 ```sh
