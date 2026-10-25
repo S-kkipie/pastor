@@ -47,7 +47,7 @@ export default function App() {
   const back = () => { if (history.state?.sid) history.back(); else setSid(null) }
 
   return (
-    <>
+    <div className="app-frame">
       <AnimatePresence mode="popLayout" initial={false}>
         {!token ? (
           <motion.div key="pair" exit={{ opacity: 0 }}><PairScreen /></motion.div>
@@ -71,6 +71,6 @@ export default function App() {
           info: <InfoIcon className="size-4" />, loading: <LoaderCircleIcon className="size-4 animate-spin" />,
         }}
         toastOptions={{ className: '!rounded-2xl !backdrop-blur-xl !font-sans' }} />
-    </>
+    </div>
   )
 }

@@ -202,6 +202,25 @@
   .text-shine { animation: none; }
 }
 
+/* ---- phone frame ----
+   The app is built for a phone (pastor shows it there), but the bridge also
+   serves it to a desktop browser over the tailnet. A centered column keeps it
+   phone-shaped on wide screens. The transform makes this element the containing
+   block for `position: fixed`, so every full-screen overlay below it (sheets,
+   the agent, the terminal) stays inside the column too, not just the screens. */
+.app-frame {
+  position: relative;
+  margin-inline: auto;
+  height: 100dvh;
+  width: 100%;
+  max-width: 480px;
+  overflow: hidden;
+  transform: translateZ(0);
+}
+@media (min-width: 481px) {
+  .app-frame { border-inline: 1px solid var(--border); }
+}
+
 /* ---- Clawd con vida: lanes where pets walk (see components/pastor/pet) ---- */
 .pet-lane { pointer-events: none; }
 .pet-lane .pet-wk { position: absolute; left: 0; bottom: 0; pointer-events: auto; touch-action: none; cursor: grab; will-change: transform; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }

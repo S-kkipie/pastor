@@ -13,3 +13,4 @@ agent/node_modules/
 .playwright-mcp/
 docs/
 .superpowers/
+.impeccable/
