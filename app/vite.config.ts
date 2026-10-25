@@ -10,5 +10,6 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   resolve: { alias: { '@': path.resolve(__dirname, './src') } },
   build: { outDir: '../bridge/web', emptyOutDir: true, chunkSizeWarningLimit: 900 },
-  server: { proxy: { '/api': 'http://127.0.0.1:7878' } },
+  // PASTOR_API points the dev server at another bridge (a hub through an SSH tunnel, say).
+  server: { proxy: { '/api': process.env.PASTOR_API ?? 'http://127.0.0.1:7878' } },
 })
